@@ -1,17 +1,19 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
 import random
 import asyncio
 from datetime import datetime, timedelta
 import logging
 from utils.database import Database
 from utils.quests import QuestGenerator
+from cogs.base_cog import BaseCog
 
-class Economy(commands.Cog):
+class Economy(BaseCog):
     """Cog for handling all economy-related commands and functions."""
     
     def __init__(self, bot):
-        self.bot = bot
+        super().__init__(bot)
         self.db = Database()
         self.quest_generator = QuestGenerator()
         self.quest_cooldowns = {}
@@ -71,23 +73,23 @@ class Economy(commands.Cog):
         # Handle "all" amount
         if amount.lower() == "all":
             user_data = self.db.get_or_create_user(user_id)
-            amount = user_data["wallet"]
+            amount_int = user_data["wallet"]
         else:
             try:
-                amount = int(amount)
-                if amount <= 0:
+                amount_int = int(amount)
+                if amount_int <= 0:
                     await ctx.send("Amount must be positive!")
                     return
             except ValueError:
                 await ctx.send("Please enter a valid amount or 'all'!")
                 return
         
-        result = self.db.deposit(user_id, amount)
+        result = self.db.deposit(user_id, amount_int)
         
         if result["success"]:
             embed = discord.Embed(
                 title="Deposit Successful",
-                description=f"You've deposited ${amount} into your bank!",
+                description=f"You've deposited ${amount_int} into your bank!",
                 color=discord.Color.green()
             )
             embed.add_field(name="Wallet", value=f"${result['wallet']}", inline=True)
@@ -323,6 +325,83 @@ class Economy(commands.Cog):
             )
         
         await ctx.send(embed=embed)
+
+# Slash command equivalents
+    @app_commands.command(name="balance", description="Check your current balance (wallet and bank)")
+    async def balance_slash(self, interaction: discord.Interaction):
+        """Slash command equivalent for checking balance."""
+        user_id = interaction.user.id
+        user_data = self.db.get_or_create_user(user_id)
+        
+        embed = discord.Embed(
+            title=f"{interaction.user.display_name}'s Balance",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Wallet", value=f"${user_data['wallet']}", inline=True)
+        embed.add_field(name="Bank", value=f"${user_data['bank']}", inline=True)
+        embed.add_field(name="Total", value=f"${user_data['wallet'] + user_data['bank']}", inline=False)
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        
+    @app_commands.command(name="daily", description="Claim your daily reward of $100")
+    async def daily_slash(self, interaction: discord.Interaction):
+        """Slash command equivalent for claiming daily reward."""
+        user_id = interaction.user.id
+        
+        # Check if daily reward is available
+        result = self.db.claim_daily_reward(user_id)
+        
+        if result["success"]:
+            embed = discord.Embed(
+                title="Daily Reward",
+                description=f"You've claimed your daily reward of $100!",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="New Balance", value=f"${result['new_balance']}")
+            await interaction.response.send_message(embed=embed)
+        else:
+            # Calculate time until next reward
+            time_left = result["next_available"] - datetime.now()
+            hours, remainder = divmod(time_left.seconds, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            
+            embed = discord.Embed(
+                title="Daily Reward",
+                description=f"You've already claimed your daily reward!",
+                color=discord.Color.red()
+            )
+            embed.add_field(name="Next Reward In", value=f"{hours}h {minutes}m {seconds}s")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+    
+    @app_commands.command(name="leaderboard", description="Display the richest users on the server")
+    async def leaderboard_slash(self, interaction: discord.Interaction):
+        """Slash command equivalent for viewing leaderboard."""
+        leaderboard_data = self.db.get_leaderboard()
+        
+        if not leaderboard_data:
+            await interaction.response.send_message("No data available for the leaderboard yet!")
+            return
+        
+        embed = discord.Embed(
+            title="Economy Leaderboard",
+            description="The richest users in the server",
+            color=discord.Color.gold()
+        )
+        
+        for i, entry in enumerate(leaderboard_data[:10], 1):
+            user = interaction.guild.get_member(entry["user_id"])
+            username = user.display_name if user else f"User {entry['user_id']}"
+            
+            # Calculate total wealth
+            total = entry["wallet"] + entry["bank"]
+            
+            embed.add_field(
+                name=f"{i}. {username}",
+                value=f"Wallet: ${entry['wallet']} | Bank: ${entry['bank']} | Total: ${total}",
+                inline=False
+            )
+        
+        await interaction.response.send_message(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Economy(bot))
