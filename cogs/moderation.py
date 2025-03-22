@@ -33,20 +33,20 @@ class Moderation(BaseCog):
     async def bomb(self, ctx, member: discord.Member = None):
         """Bomb a user (timeout) based on your role permissions."""
         if member is None:
-            await ctx.send("You need to specify a user to bomb! Usage: !bomb @username")
+            await ctx.send("You need to specify a user to bomb! Usage: !bomb @username ....fkin dumbass nig...")
             return
         user_id = ctx.author.id
         target_id = member.id
         
         # Check if user is trying to bomb themselves
         if user_id == target_id:
-            await ctx.send("You can't bomb yourself!")
+            await ctx.send("yoyoyoyoyo.. this mf trying to bomb himself lmfao")
             return
             
         # Check if target has a protected role
         for role in member.roles:
             if role.id in self.protected_role_ids:
-                await ctx.send(f"You cannot bomb users with the {role.name} role!")
+                await ctx.send(f"Nigga wtf You cannot bomb users with the {role.name} role!")
                 return
                 
         # Check if user has permission to bomb
@@ -64,7 +64,7 @@ class Moderation(BaseCog):
         BOMB_COST = 50  # Cost to bomb someone
         
         if user_data["wallet"] < BOMB_COST:
-            await ctx.send(f"You need ${BOMB_COST} in your wallet to bomb someone!")
+            await ctx.send(f"You need ${BOMB_COST} in your wallet to bomb someone you fkin moronenic poor lil bitch!")
             return
             
         # Deduct money
