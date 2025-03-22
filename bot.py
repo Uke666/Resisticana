@@ -147,6 +147,7 @@ async def help_command(ctx, category=None):
         embed.add_field(name=f"{prefix}company [name]", value="Display info about your company or another company", inline=False)
         embed.add_field(name=f"{prefix}invite <@user>", value="Invite a user to your company", inline=False)
         embed.add_field(name=f"{prefix}leave", value="Leave your current company", inline=False)
+        embed.add_field(name=f"{prefix}kick <@user>", value="Kick a member from your company (owner only)", inline=False)
         embed.add_field(name=f"{prefix}disband", value="Disband your company as the owner", inline=False)
         embed.add_field(name=f"{prefix}companies", value="List all companies on the server", inline=False)
         
@@ -244,6 +245,7 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
         embed.add_field(name="/company [name]", value="Display info about your company or another company", inline=False)
         embed.add_field(name="/invite user:<@user>", value="Invite a user to your company", inline=False)
         embed.add_field(name="/leave", value="Leave your current company", inline=False)
+        embed.add_field(name="/kick user:<@user>", value="Kick a member from your company (owner only)", inline=False)
         embed.add_field(name="/disband", value="Disband your company as the owner", inline=False)
         embed.add_field(name="/companies", value="List all companies on the server", inline=False)
         
