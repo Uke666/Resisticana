@@ -366,6 +366,36 @@ class Company(BaseCog):
         except asyncio.TimeoutError:
             await ctx.send("Disbanding confirmation timed out.")
             
+    @commands.command(name="kick")
+    async def kick_from_company(self, ctx, member: discord.Member):
+        """Kick a member from your company."""
+        owner_id = ctx.author.id
+        target_id = member.id
+        
+        # Check if user owns a company
+        company_data = self.db.get_user_owned_company(owner_id)
+        
+        if not company_data:
+            await ctx.send("You don't own a company!")
+            return
+            
+        # Check if target is in the company
+        if target_id not in company_data["employees"]:
+            await ctx.send(f"{member.display_name} is not a member of your company!")
+            return
+            
+        # Remove member from company
+        result = self.db.remove_employee_from_company(company_data["id"], target_id)
+        
+        if result["success"]:
+            await ctx.send(f"Kicked {member.display_name} from your company!")
+            try:
+                await member.send(f"You have been kicked from {company_data['name']}!")
+            except:
+                pass  # DM failed, but kick was successful
+        else:
+            await ctx.send(f"Error: {result['message']}")
+
     @commands.command(name="companies")
     async def list_companies(self, ctx):
         """List all companies on the server."""
@@ -739,6 +769,40 @@ class Company(BaseCog):
             # Cancel disbanding
             await interaction.response.send_message("Company disbanding cancelled.", ephemeral=True)
     
+    @app_commands.command(name="kick", description="Kick a member from your company")
+    @app_commands.describe(user="The user to kick from your company")
+    async def kick_from_company_slash(self, interaction: discord.Interaction, user: discord.Member):
+        """Slash command for kicking users from a company."""
+        owner_id = interaction.user.id
+        target_id = user.id
+        
+        # Check if user owns a company
+        company_data = self.db.get_user_owned_company(owner_id)
+        
+        if not company_data:
+            await interaction.response.send_message("You don't own a company!", ephemeral=True)
+            return
+            
+        # Check if target is in the company
+        if target_id not in company_data["employees"]:
+            await interaction.response.send_message(
+                f"{user.display_name} is not a member of your company!",
+                ephemeral=True
+            )
+            return
+            
+        # Remove member from company
+        result = self.db.remove_employee_from_company(company_data["id"], target_id)
+        
+        if result["success"]:
+            await interaction.response.send_message(f"Kicked {user.display_name} from your company!")
+            try:
+                await user.send(f"You have been kicked from {company_data['name']}!")
+            except:
+                pass  # DM failed, but kick was successful
+        else:
+            await interaction.response.send_message(f"Error: {result['message']}", ephemeral=True)
+
     @app_commands.command(name="companies", description="List all companies on the server")
     async def list_companies_slash(self, interaction: discord.Interaction):
         """Slash command for listing all companies."""
