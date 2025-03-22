@@ -30,8 +30,11 @@ class Moderation(BaseCog):
         }
         
     @commands.command(name="bomb")
-    async def bomb(self, ctx, member: discord.Member):
+    async def bomb(self, ctx, member: discord.Member = None):
         """Bomb a user (timeout) based on your role permissions."""
+        if member is None:
+            await ctx.send("You need to specify a user to bomb! Usage: !bomb @username")
+            return
         user_id = ctx.author.id
         target_id = member.id
         
@@ -263,7 +266,7 @@ class Moderation(BaseCog):
                     timeout_duration = self.timeout_permissions[role.id]
                     highest_role = role
                     
-        if timeout_duration > 0:
+        if timeout_duration > 0 and highest_role is not None:
             # Format duration for display
             if timeout_duration < 60:
                 duration_text = f"{timeout_duration} seconds"
