@@ -106,23 +106,23 @@ class Economy(BaseCog):
         # Handle "all" amount
         if amount.lower() == "all":
             user_data = self.db.get_or_create_user(user_id)
-            amount = user_data["bank"]
+            amount_int = user_data["bank"]
         else:
             try:
-                amount = int(amount)
-                if amount <= 0:
+                amount_int = int(amount)
+                if amount_int <= 0:
                     await ctx.send("Amount must be positive!")
                     return
             except ValueError:
                 await ctx.send("Please enter a valid amount or 'all'!")
                 return
         
-        result = self.db.withdraw(user_id, amount)
+        result = self.db.withdraw(user_id, amount_int)
         
         if result["success"]:
             embed = discord.Embed(
                 title="Withdrawal Successful",
-                description=f"You've withdrawn ${amount} from your bank!",
+                description=f"You've withdrawn ${amount_int} from your bank!",
                 color=discord.Color.green()
             )
             embed.add_field(name="Wallet", value=f"${result['wallet']}", inline=True)
@@ -372,6 +372,231 @@ class Economy(BaseCog):
             )
             embed.add_field(name="Next Reward In", value=f"{hours}h {minutes}m {seconds}s")
             await interaction.response.send_message(embed=embed, ephemeral=True)
+    
+    @app_commands.command(name="deposit", description="Deposit money from your wallet to your bank")
+    @app_commands.describe(amount="Amount to deposit (or 'all' to deposit everything)")
+    async def deposit_slash(self, interaction: discord.Interaction, amount: str):
+        """Slash command for depositing money."""
+        user_id = interaction.user.id
+        
+        # Handle "all" amount
+        if amount.lower() == "all":
+            user_data = self.db.get_or_create_user(user_id)
+            amount_int = user_data["wallet"]
+        else:
+            try:
+                amount_int = int(amount)
+                if amount_int <= 0:
+                    await interaction.response.send_message("Amount must be positive!", ephemeral=True)
+                    return
+            except ValueError:
+                await interaction.response.send_message("Please enter a valid amount or 'all'!", ephemeral=True)
+                return
+        
+        result = self.db.deposit(user_id, amount_int)
+        
+        if result["success"]:
+            embed = discord.Embed(
+                title="Deposit Successful",
+                description=f"You've deposited ${amount_int} into your bank!",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="Wallet", value=f"${result['wallet']}", inline=True)
+            embed.add_field(name="Bank", value=f"${result['bank']}", inline=True)
+            await interaction.response.send_message(embed=embed)
+        else:
+            await interaction.response.send_message(f"Error: {result['message']}", ephemeral=True)
+            
+    @app_commands.command(name="withdraw", description="Withdraw money from your bank to your wallet")
+    @app_commands.describe(amount="Amount to withdraw (or 'all' to withdraw everything)")
+    async def withdraw_slash(self, interaction: discord.Interaction, amount: str):
+        """Slash command for withdrawing money."""
+        user_id = interaction.user.id
+        
+        # Handle "all" amount
+        if amount.lower() == "all":
+            user_data = self.db.get_or_create_user(user_id)
+            amount_int = user_data["bank"]
+        else:
+            try:
+                amount_int = int(amount)
+                if amount_int <= 0:
+                    await interaction.response.send_message("Amount must be positive!", ephemeral=True)
+                    return
+            except ValueError:
+                await interaction.response.send_message("Please enter a valid amount or 'all'!", ephemeral=True)
+                return
+        
+        result = self.db.withdraw(user_id, amount_int)
+        
+        if result["success"]:
+            embed = discord.Embed(
+                title="Withdrawal Successful",
+                description=f"You've withdrawn ${amount_int} from your bank!",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="Wallet", value=f"${result['wallet']}", inline=True)
+            embed.add_field(name="Bank", value=f"${result['bank']}", inline=True)
+            await interaction.response.send_message(embed=embed)
+        else:
+            await interaction.response.send_message(f"Error: {result['message']}", ephemeral=True)
+    
+    @app_commands.command(name="transfer", description="Transfer money from your wallet to another user")
+    @app_commands.describe(user="User to send money to", amount="Amount to transfer")
+    async def transfer_slash(self, interaction: discord.Interaction, user: discord.Member, amount: int):
+        """Slash command for transferring money."""
+        if amount <= 0:
+            await interaction.response.send_message("Amount must be positive!", ephemeral=True)
+            return
+            
+        sender_id = interaction.user.id
+        recipient_id = user.id
+        
+        if sender_id == recipient_id:
+            await interaction.response.send_message("You can't transfer money to yourself!", ephemeral=True)
+            return
+        
+        result = self.db.transfer(sender_id, recipient_id, amount)
+        
+        if result["success"]:
+            embed = discord.Embed(
+                title="Transfer Successful",
+                description=f"You've transferred ${amount} to {user.display_name}!",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="Your Balance", value=f"${result['sender_wallet']}", inline=True)
+            await interaction.response.send_message(embed=embed)
+        else:
+            await interaction.response.send_message(f"Error: {result['message']}", ephemeral=True)
+            
+    @app_commands.command(name="quest", description="Get a random quest to earn money")
+    async def quest_slash(self, interaction: discord.Interaction):
+        """Slash command for getting a quest."""
+        user_id = interaction.user.id
+        
+        # Check cooldown
+        now = datetime.now()
+        if user_id in self.quest_cooldowns and now < self.quest_cooldowns[user_id]:
+            time_left = self.quest_cooldowns[user_id] - now
+            minutes, seconds = divmod(time_left.seconds, 60)
+            await interaction.response.send_message(
+                f"You need to wait {minutes}m {seconds}s before getting another quest!", 
+                ephemeral=True
+            )
+            return
+        
+        # Generate a quest
+        quest_data = await self.quest_generator.generate_quest(interaction.user.display_name)
+        
+        # Set cooldown (30 minutes)
+        self.quest_cooldowns[user_id] = now + timedelta(minutes=30)
+        
+        # Create embed for quest
+        embed = discord.Embed(
+            title=f"Quest for {interaction.user.display_name}",
+            description=quest_data["quest_description"],
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="Reward", value=f"${quest_data['reward']}", inline=False)
+        embed.add_field(name="Time Limit", value=f"{quest_data['time_limit']} minutes", inline=False)
+        embed.add_field(
+            name="Instructions", 
+            value="React to this message in the chat with ✅ to accept or ❌ to decline.",
+            inline=False
+        )
+        
+        # Send quest
+        await interaction.response.send_message(embed=embed)
+        
+        # Since we can't easily use reactions with slash commands, we'll instruct the user to use the prefix command
+        await interaction.followup.send(
+            f"Use the prefix command `!quest` for a more interactive quest experience with reaction buttons.",
+            ephemeral=True
+        )
+    
+    @app_commands.command(name="rob", description="Attempt to rob another user (requires 5+ people)")
+    @app_commands.describe(user="User to rob")
+    async def rob_slash(self, interaction: discord.Interaction, user: discord.Member):
+        """Slash command for robbing other users."""
+        user_id = interaction.user.id
+        target_id = user.id
+        
+        # Can't rob yourself
+        if user_id == target_id:
+            await interaction.response.send_message("You can't rob yourself!", ephemeral=True)
+            return
+        
+        # Check if target has already been robbed recently
+        if target_id in self.rob_attempts and "last_robbed" in self.rob_attempts[target_id]:
+            last_robbed = self.rob_attempts[target_id]["last_robbed"]
+            if datetime.now() < last_robbed + timedelta(hours=1):
+                await interaction.response.send_message(
+                    f"{user.display_name} has already been robbed recently. Try again later!",
+                    ephemeral=True
+                )
+                return
+        
+        # Initialize rob attempt for this target if it doesn't exist
+        if target_id not in self.rob_attempts:
+            self.rob_attempts[target_id] = {"users": []}
+        
+        # Check if this user already joined the rob attempt
+        if user_id in self.rob_attempts[target_id]["users"]:
+            await interaction.response.send_message("You're already part of this robbery attempt!", ephemeral=True)
+            return
+        
+        # Add user to rob attempt
+        self.rob_attempts[target_id]["users"].append(user_id)
+        robbers_count = len(self.rob_attempts[target_id]["users"])
+        
+        if robbers_count < 5:
+            # Not enough robbers yet
+            await interaction.response.send_message(
+                f"{interaction.user.display_name} wants to rob {user.display_name}! " +
+                f"{5 - robbers_count} more people needed! Use `/rob user:{user.display_name}` to join."
+            )
+        else:
+            # Enough robbers to attempt the robbery
+            target_data = self.db.get_or_create_user(target_id)
+            
+            # Check if target has money in wallet
+            if target_data["wallet"] <= 0:
+                await interaction.response.send_message(f"{user.display_name} has no money in their wallet to rob!")
+                self.rob_attempts.pop(target_id)
+                return
+            
+            # Calculate amount to rob (10-25% of wallet)
+            rob_percent = random.uniform(0.1, 0.25)
+            rob_amount = int(target_data["wallet"] * rob_percent)
+            
+            # Ensure minimum rob amount
+            rob_amount = max(rob_amount, 10)
+            
+            # Ensure rob amount doesn't exceed wallet
+            rob_amount = min(rob_amount, target_data["wallet"])
+            
+            # Complete the robbery
+            self.db.remove_money(target_id, rob_amount)
+            
+            # Split the money between robbers
+            split_amount = rob_amount // len(self.rob_attempts[target_id]["users"])
+            
+            # Give each robber their cut
+            robbers_mentions = []
+            for robber_id in self.rob_attempts[target_id]["users"]:
+                self.db.add_money(robber_id, split_amount)
+                robber = interaction.guild.get_member(robber_id)
+                if robber:
+                    robbers_mentions.append(robber.mention)
+            
+            # Set the cooldown for robbing this target again
+            self.rob_attempts[target_id] = {"last_robbed": datetime.now()}
+            
+            # Send success message
+            robbers_list = " ".join(robbers_mentions)
+            await interaction.response.send_message(
+                f"Robbery successful! {robbers_list} robbed {user.mention} of ${rob_amount} and each got ${split_amount}!"
+            )
     
     @app_commands.command(name="leaderboard", description="Display the richest users on the server")
     async def leaderboard_slash(self, interaction: discord.Interaction):
