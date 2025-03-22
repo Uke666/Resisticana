@@ -96,6 +96,7 @@ def home():
                 <div class="mt-4">
                     <button id="refreshBtn" class="btn btn-primary">Refresh Status</button>
                     <button id="startBtn" class="btn btn-success">Start Bot</button>
+                    <button id="restartBtn" class="btn btn-warning">Restart Bot</button>
                 </div>
             </div>
         </div>
@@ -160,6 +161,23 @@ def home():
                         console.error('Error starting bot:', error);
                     });
             });
+            
+            // Set up restart button
+            document.getElementById('restartBtn').addEventListener('click', function() {
+                fetch('/restart', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Bot restarting with new token...');
+                            setTimeout(checkStatus, 2000);
+                        } else {
+                            alert('Failed to restart bot: ' + data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error restarting bot:', error);
+                    });
+            });
         </script>
     </body>
     </html>
@@ -177,6 +195,22 @@ def start():
     
     if bot_status["is_running"]:
         return jsonify({"success": False, "error": "Bot is already running"})
+    
+    # Start the bot in a new thread
+    bot_thread = threading.Thread(target=start_bot_thread)
+    bot_thread.daemon = True
+    bot_thread.start()
+    
+    return jsonify({"success": True})
+
+@app.route('/restart', methods=['POST'])
+def restart():
+    """Restart the bot to apply new settings or tokens."""
+    global bot_status
+    
+    # Mark the bot as not running
+    bot_status["is_running"] = False
+    bot_status["error"] = None
     
     # Start the bot in a new thread
     bot_thread = threading.Thread(target=start_bot_thread)

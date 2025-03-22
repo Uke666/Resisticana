@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 import logging
+import asyncio
 from utils.database import Database
 
 class Company(commands.Cog):
