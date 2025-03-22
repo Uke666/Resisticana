@@ -435,7 +435,7 @@ class Economy(BaseCog):
             rob_amount = int(target_data["wallet"] * rob_percent)
             
             # Ensure minimum rob amount
-            rob_amount = max(rob_amount, 10)
+            rob_amount = min(rob_amount, 10)
             
             # Ensure rob amount doesn't exceed wallet
             rob_amount = min(rob_amount, target_data["wallet"])
