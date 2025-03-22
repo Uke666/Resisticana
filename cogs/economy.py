@@ -148,13 +148,177 @@ class Economy(BaseCog):
         result = self.db.transfer(sender_id, recipient_id, amount)
         
         if result["success"]:
-            embed = discord.Embed(
+            # Create embed for sender
+            sender_embed = discord.Embed(
                 title="Transfer Successful",
                 description=f"You've transferred ${amount} to {recipient.display_name}!",
                 color=discord.Color.green()
             )
-            embed.add_field(name="Your Balance", value=f"${result['sender_wallet']}", inline=True)
-            await ctx.send(embed=embed)
+            sender_embed.add_field(name="Your Balance", value=f"${result['sender_wallet']}", inline=True)
+            await ctx.send(embed=sender_embed)
+            
+            # Send notification to recipient
+            try:
+                recipient_embed = discord.Embed(
+                    title="Money Received!",
+                    description=f"You've received ${amount} from {ctx.author.display_name}!",
+                    color=discord.Color.green()
+                )
+                recipient_embed.add_field(name="New Balance", value=f"${result['recipient_wallet']}", inline=True)
+                
+                # Try to DM the recipient
+                await recipient.send(embed=recipient_embed)
+            except discord.Forbidden:
+                # If DM is blocked, try to send in the same channel
+                pass
+        else:
+            await ctx.send(f"Error: {result['message']}")
+            
+    @commands.command(name="request", aliases=["req"])
+    async def request_money(self, ctx, recipient: discord.Member, amount: int, *, reason: str = None):
+        """Request money from another user."""
+        if amount <= 0:
+            await ctx.send("Amount must be positive!")
+            return
+            
+        requester_id = ctx.author.id
+        recipient_id = recipient.id
+        
+        if requester_id == recipient_id:
+            await ctx.send("You can't request money from yourself!")
+            return
+            
+        # Create the request
+        request = self.db.create_money_request(requester_id, recipient_id, amount, reason)
+        
+        # Create embed for requester
+        requester_embed = discord.Embed(
+            title="Money Request Sent",
+            description=f"You've requested ${amount} from {recipient.display_name}!",
+            color=discord.Color.blue()
+        )
+        if reason:
+            requester_embed.add_field(name="Reason", value=reason, inline=False)
+        requester_embed.add_field(name="Request ID", value=f"#{request['id']}", inline=True)
+        await ctx.send(embed=requester_embed)
+        
+        # Send notification to recipient
+        try:
+            recipient_embed = discord.Embed(
+                title="Money Request Received",
+                description=f"{ctx.author.display_name} has requested ${amount} from you!",
+                color=discord.Color.blue()
+            )
+            if reason:
+                recipient_embed.add_field(name="Reason", value=reason, inline=False)
+            recipient_embed.add_field(name="Request ID", value=f"#{request['id']}", inline=True)
+            recipient_embed.add_field(
+                name="How to respond", 
+                value=f"Use `!pay {ctx.author.display_name} {amount}` to accept\nor `!reject {request['id']}` to decline", 
+                inline=False
+            )
+            
+            # Try to DM the recipient
+            await recipient.send(embed=recipient_embed)
+        except discord.Forbidden:
+            # If DM is blocked, send in the same channel
+            await ctx.send(f"{recipient.mention}, you have received a money request! Check your DMs or use `!requests` to view it.")
+            
+    @commands.command(name="requests", aliases=["reqs"])
+    async def view_requests(self, ctx):
+        """View your pending money requests."""
+        user_id = ctx.author.id
+        
+        # Get all pending requests
+        requests = self.db.get_pending_requests(user_id)
+        
+        if not requests:
+            await ctx.send("You don't have any pending money requests!")
+            return
+            
+        # Create embed for requests
+        embed = discord.Embed(
+            title="Your Pending Money Requests",
+            description=f"You have {len(requests)} pending requests.",
+            color=discord.Color.blue()
+        )
+        
+        # Add received requests
+        received_requests = [req for req in requests if req["recipient_id"] == user_id]
+        if received_requests:
+            received_text = ""
+            for req in received_requests[:5]:  # Show only top 5
+                requester = ctx.guild.get_member(req["requester_id"])
+                requester_name = requester.display_name if requester else f"User {req['requester_id']}"
+                reason_text = f" - {req['reason']}" if req["reason"] else ""
+                received_text += f"#{req['id']} | From: {requester_name} | Amount: ${req['amount']}{reason_text}\n"
+            
+            embed.add_field(name="Money Requested From You", value=received_text or "None", inline=False)
+        
+        # Add sent requests
+        sent_requests = [req for req in requests if req["requester_id"] == user_id]
+        if sent_requests:
+            sent_text = ""
+            for req in sent_requests[:5]:  # Show only top 5
+                recipient = ctx.guild.get_member(req["recipient_id"])
+                recipient_name = recipient.display_name if recipient else f"User {req['recipient_id']}"
+                reason_text = f" - {req['reason']}" if req["reason"] else ""
+                sent_text += f"#{req['id']} | To: {recipient_name} | Amount: ${req['amount']}{reason_text}\n"
+            
+            embed.add_field(name="Money You Requested", value=sent_text or "None", inline=False)
+        
+        embed.set_footer(text="Use !pay @user amount to accept or !reject request_id to decline")
+        await ctx.send(embed=embed)
+        
+    @commands.command(name="reject", aliases=["decline"])
+    async def reject_request(self, ctx, request_id: int):
+        """Reject a money request."""
+        user_id = ctx.author.id
+        
+        # Get the request
+        request = self.db.get_request_by_id(request_id)
+        
+        if not request:
+            await ctx.send("Request not found!")
+            return
+            
+        # Check if the user is the recipient of this request
+        if request["recipient_id"] != user_id:
+            await ctx.send("You can only reject requests sent to you!")
+            return
+            
+        # Check if the request is still pending
+        if request["status"] != "pending":
+            await ctx.send("This request has already been resolved!")
+            return
+            
+        # Resolve the request (decline)
+        result = self.db.resolve_money_request(request_id, accept=False)
+        
+        if result["success"]:
+            # Notify the requester
+            requester = ctx.guild.get_member(request["requester_id"])
+            
+            # Create embed for recipient (current user)
+            recipient_embed = discord.Embed(
+                title="Request Rejected",
+                description=f"You've rejected the money request #{request_id}.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=recipient_embed)
+            
+            # Try to notify the requester
+            if requester:
+                try:
+                    requester_embed = discord.Embed(
+                        title="Money Request Rejected",
+                        description=f"{ctx.author.display_name} has rejected your request for ${request['amount']}.",
+                        color=discord.Color.red()
+                    )
+                    await requester.send(embed=requester_embed)
+                except discord.Forbidden:
+                    # If DM is blocked, we'll just skip notification
+                    pass
         else:
             await ctx.send(f"Error: {result['message']}")
 

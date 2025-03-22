@@ -11,6 +11,7 @@ class Database:
         self.users_file = 'data/users.json'
         self.companies_file = 'data/companies.json'
         self.timeout_logs_file = 'data/timeout_logs.json'
+        self.transaction_requests_file = 'data/transaction_requests.json'
         
         self.initialize_data_files()
         
@@ -29,6 +30,13 @@ class Database:
         # Initialize timeout logs file
         if not os.path.exists(self.timeout_logs_file):
             self.save_json(self.timeout_logs_file, [])
+            
+        # Initialize transaction requests file
+        if not os.path.exists(self.transaction_requests_file):
+            self.save_json(self.transaction_requests_file, {
+                "requests": [],
+                "next_id": 1
+            })
     
     def save_json(self, file_path, data):
         """Save data to a JSON file."""
@@ -510,3 +518,138 @@ class Database:
         user_logs.sort(key=lambda x: x["timestamp"], reverse=True)
         
         return user_logs
+        
+    def initialize_transaction_requests_file(self):
+        """Initialize the transaction requests file if it doesn't exist."""
+        if not os.path.exists(self.transaction_requests_file):
+            self.save_json(self.transaction_requests_file, {
+                "requests": [],
+                "next_id": 1
+            })
+            
+    def create_money_request(self, requester_id, recipient_id, amount, reason=None):
+        """Create a money request from one user to another.
+        
+        Args:
+            requester_id: The user ID requesting the money
+            recipient_id: The user ID being asked to pay
+            amount: The amount of money requested
+            reason: Optional reason for the request
+            
+        Returns:
+            dict: A dictionary with request information including an ID
+        """
+        self.initialize_transaction_requests_file()
+        data = self.load_json(self.transaction_requests_file)
+        
+        # Create a new request
+        request_id = data["next_id"]
+        data["next_id"] += 1
+        
+        new_request = {
+            "id": request_id,
+            "requester_id": requester_id,
+            "recipient_id": recipient_id,
+            "amount": amount,
+            "reason": reason,
+            "status": "pending",  # pending, accepted, rejected
+            "created_at": datetime.now(),
+            "resolved_at": None
+        }
+        
+        data["requests"].append(new_request)
+        self.save_json(self.transaction_requests_file, data)
+        
+        return new_request
+        
+    def get_pending_requests(self, user_id):
+        """Get all pending money requests for a user (both as requester and recipient)."""
+        self.initialize_transaction_requests_file()
+        data = self.load_json(self.transaction_requests_file)
+        
+        # Get all requests related to this user
+        user_requests = [
+            req for req in data["requests"] 
+            if (req["requester_id"] == user_id or req["recipient_id"] == user_id)
+            and req["status"] == "pending"
+        ]
+        
+        # Sort by timestamp (newest first)
+        user_requests.sort(key=lambda x: x["created_at"], reverse=True)
+        
+        return user_requests
+        
+    def get_request_by_id(self, request_id):
+        """Get a money request by its ID."""
+        self.initialize_transaction_requests_file()
+        data = self.load_json(self.transaction_requests_file)
+        
+        for request in data["requests"]:
+            if request["id"] == request_id:
+                return request
+                
+        return None
+        
+    def resolve_money_request(self, request_id, accept=True):
+        """Resolve a money request by accepting or rejecting it.
+        
+        Args:
+            request_id: The ID of the request to resolve
+            accept: Boolean indicating whether to accept the request
+            
+        Returns:
+            dict: A dictionary with the result of the resolution
+        """
+        self.initialize_transaction_requests_file()
+        data = self.load_json(self.transaction_requests_file)
+        
+        # Find the request
+        request = None
+        request_index = -1
+        for i, req in enumerate(data["requests"]):
+            if req["id"] == request_id:
+                request = req
+                request_index = i
+                break
+                
+        if request is None:
+            return {"success": False, "message": "Request not found"}
+            
+        # Check if the request is still pending
+        if request["status"] != "pending":
+            return {"success": False, "message": "This request has already been resolved"}
+            
+        # If accepting, transfer the money
+        result = {"success": True, "accepted": accept}
+        
+        if accept:
+            transfer_result = self.transfer(
+                request["recipient_id"], 
+                request["requester_id"], 
+                request["amount"]
+            )
+            
+            if not transfer_result["success"]:
+                return {"success": False, "message": transfer_result["message"]}
+                
+            result["transfer"] = transfer_result
+            
+        # Update the request status
+        data["requests"][request_index]["status"] = "accepted" if accept else "rejected"
+        data["requests"][request_index]["resolved_at"] = datetime.now()
+        self.save_json(self.transaction_requests_file, data)
+        
+        return result
+        
+    def log_transaction(self, sender_id, recipient_id, amount, transaction_type, message=None):
+        """Log a money transaction for notification purposes.
+        
+        Args:
+            sender_id: The user ID sending the money (or None for system transactions)
+            recipient_id: The user ID receiving the money
+            amount: The amount of money transferred
+            transaction_type: The type of transaction (daily, transfer, quest, etc.)
+            message: Optional message about the transaction
+        """
+        # For future implementation if needed - this would store all transaction history
+        pass
