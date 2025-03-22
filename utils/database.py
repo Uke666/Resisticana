@@ -221,8 +221,14 @@ class Database:
             "recipient_wallet": users[recipient_id_str]["wallet"]
         }
     
-    def create_company(self, owner_id, company_name):
-        """Create a new company with the given owner and name."""
+    def create_company(self, owner_id, company_name, creator_role_id=None):
+        """Create a new company with the given owner and name.
+        
+        Args:
+            owner_id: The user ID of the company owner
+            company_name: The name of the company
+            creator_role_id: The role ID that created the company (for bonus calculation)
+        """
         data = self.load_json(self.companies_file)
         
         # Check if company name already exists
@@ -244,7 +250,8 @@ class Database:
             "name": company_name,
             "owner_id": owner_id,
             "employees": [],
-            "created_at": datetime.now()
+            "created_at": datetime.now(),
+            "creator_role_id": creator_role_id
         }
         
         data["companies"].append(new_company)
@@ -313,7 +320,16 @@ class Database:
         self.save_json(self.users_file, users)
     
     def add_employee_to_company(self, company_id, user_id):
-        """Add a user as an employee to a company."""
+        """Add a user as an employee to a company.
+        
+        Returns:
+            dict: A dictionary with success status, and additional information:
+                - success: Boolean indicating whether the operation was successful
+                - message: Error message if success is False
+                - unlocked_bonus: Boolean indicating whether this addition pushed the company over 5 members
+                - company_name: The name of the company (only if unlocked_bonus is True)
+                - creator_role_id: The ID of the role that created the company (only if unlocked_bonus is True)
+        """
         data = self.load_json(self.companies_file)
         
         company_index = None
@@ -328,7 +344,11 @@ class Database:
         # Check if user is already in the company
         if user_id in data["companies"][company_index]["employees"]:
             return {"success": False, "message": "User is already an employee of this company"}
-            
+        
+        # Check if this addition will push the company over 5 members
+        current_member_count = len(data["companies"][company_index]["employees"]) + 1  # +1 for owner
+        unlocked_bonus = current_member_count == 5  # Will become 6 members after addition
+        
         # Add user to company
         data["companies"][company_index]["employees"].append(user_id)
         self.save_json(self.companies_file, data)
@@ -336,7 +356,14 @@ class Database:
         # Update user's company_id
         self.update_user_company(user_id, company_id)
         
-        return {"success": True}
+        result = {"success": True, "unlocked_bonus": unlocked_bonus}
+        
+        # Add additional info if bonus was unlocked
+        if unlocked_bonus:
+            result["company_name"] = data["companies"][company_index]["name"]
+            result["creator_role_id"] = data["companies"][company_index].get("creator_role_id")
+            
+        return result
     
     def remove_employee_from_company(self, company_id, user_id):
         """Remove a user from a company."""
@@ -412,8 +439,31 @@ class Database:
         if user["company_id"] is not None:
             # Check if last activity was more than 1 hour ago
             if user["last_activity"] and datetime.fromisoformat(user["last_activity"]) < now - timedelta(hours=1):
-                # Give activity bonus
-                user["wallet"] += 10
+                # Get company info to determine bonus amount
+                company = self.get_company_by_id(user["company_id"])
+                if company:
+                    # Default bonus
+                    bonus_amount = 10
+                    
+                    # Calculate bonus based on creator role and company size
+                    if "creator_role_id" in company:
+                        # Level 35 role (25$ bonus)
+                        if company["creator_role_id"] == 1352694494797234237:
+                            bonus_amount = 25
+                        # Level 50 role (50$ bonus)
+                        elif company["creator_role_id"] == 1352694494813749299:
+                            bonus_amount = 50
+                    
+                    # Additional bonus for companies with more than 5 members
+                    total_members = len(company.get("employees", [])) + 1  # +1 for owner
+                    if total_members > 5:
+                        bonus_amount += 25
+                        
+                    # Give activity bonus
+                    user["wallet"] += bonus_amount
+                else:
+                    # Default bonus if company not found
+                    user["wallet"] += 10
                 
         # Update last activity
         user["last_activity"] = now.isoformat()

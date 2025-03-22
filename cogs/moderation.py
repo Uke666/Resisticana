@@ -107,7 +107,7 @@ class Moderation(BaseCog):
                     timeout_duration = self.timeout_permissions[role.id]
                     highest_role = role
                     
-        if timeout_duration > 0:
+        if timeout_duration > 0 and highest_role is not None:
             # Format duration for display
             if timeout_duration < 60:
                 duration_text = f"{timeout_duration} seconds"
@@ -122,8 +122,11 @@ class Moderation(BaseCog):
     @commands.command(name="timeouthistory")
     async def timeout_history(self, ctx, member: discord.Member = None):
         """View timeout history for yourself or another user."""
-        target_id = member.id if member else ctx.author.id
-        target_name = member.display_name if member else ctx.author.display_name
+        if member is None:
+            member = ctx.author
+            
+        target_id = member.id
+        target_name = member.display_name
         
         # Get timeout history
         timeout_logs = self.db.get_timeout_logs(target_id)
@@ -266,8 +269,11 @@ class Moderation(BaseCog):
     @app_commands.describe(user="The user to check timeout history for (leave empty for yourself)")
     async def timeout_history_slash(self, interaction: discord.Interaction, user: discord.Member = None):
         """Slash command for viewing timeout history."""
-        target_id = user.id if user else interaction.user.id
-        target_name = user.display_name if user else interaction.user.display_name
+        if user is None:
+            user = interaction.user
+            
+        target_id = user.id
+        target_name = user.display_name
         
         # Get timeout history
         timeout_logs = self.db.get_timeout_logs(target_id)

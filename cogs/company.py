@@ -12,44 +12,77 @@ class Company(BaseCog):
     def __init__(self, bot):
         super().__init__(bot)
         self.db = Database()
+        # Role IDs that can create companies
+        self.creator_role_ids = [
+            1352694494797234237,  # level 35
+            1352694494813749299   # level 50
+        ]
+        self.max_company_members = 10  # Maximum members per company
+        self.notification_channel_id = 1352694495530975240  # Channel for notifications
+        
+    async def send_notification(self, guild, message):
+        """Send a notification to the designated channel."""
+        channel = guild.get_channel(self.notification_channel_id)
+        if channel:
+            await channel.send(message)
         
     @commands.command(name="createcompany", aliases=["newcompany"])
     async def create_company(self, ctx, *, company_name: str):
-        """Create a new company (requires higher role)."""
+        """Create a new company (requires level 35 or level 50 role)."""
         user_id = ctx.author.id
         
-        # Check if user has permission to create a company (higher role)
-        # Higher roles are: Owner, Admin, Moderator/staff, level 50, level 35
-        allowed_role_ids = [
-            "1352694494843240448",  # Owner
-            "1352694494813749308",  # Admin
-            "1352694494813749307",  # Moderator/staff
-            "1352694494813749299",  # level 50
-            "1352694494797234237"   # level 35
-        ]
-        
-        has_permission = False
+        # Check if user has the necessary role to create a company
+        creator_role_id = None
         for role in ctx.author.roles:
-            if str(role.id) in allowed_role_ids:
-                has_permission = True
+            if role.id in self.creator_role_ids:
+                creator_role_id = role.id
+                role_name = role.name
                 break
                 
-        if not has_permission:
-            await ctx.send("You don't have permission to create a company! You need a higher role.")
+        if not creator_role_id:
+            await ctx.send("You need the 'level 35' or 'level 50' role to create a company!")
             return
             
-        # Attempt to create the company
-        result = self.db.create_company(user_id, company_name)
+        # Check if user already has a company
+        existing_company = self.db.get_user_owned_company(user_id)
+        if existing_company:
+            await ctx.send(f"You already own a company called '{existing_company['name']}'!")
+            return
+            
+        # Check if user already belongs to a company
+        user_company = self.db.get_user_company(user_id)
+        if user_company:
+            await ctx.send(f"You're already a member of '{user_company['name']}'. You must leave it first!")
+            return
+            
+        # Check if company name already exists
+        if self.db.get_company_by_name(company_name):
+            await ctx.send(f"A company with the name '{company_name}' already exists!")
+            return
+            
+        # Attempt to create the company with creator role ID
+        result = self.db.create_company(user_id, company_name, creator_role_id)
         
         if result["success"]:
+            # Calculate bonus based on role
+            bonus = 25 if creator_role_id == 1352694494797234237 else 50  # 25$ for level 35, 50$ for level 50
+            
             embed = discord.Embed(
                 title="Company Created",
                 description=f"Congratulations! You've created '{company_name}'!",
                 color=discord.Color.green()
             )
             embed.add_field(name="Owner", value=ctx.author.mention, inline=False)
+            embed.add_field(name="Activity Bonus", value=f"${bonus} per hour per active member", inline=False)
+            embed.add_field(name="Member Limit", value=f"Maximum of {self.max_company_members} members", inline=False)
             embed.add_field(name="Next Steps", value="Invite members using `!invite @user`", inline=False)
             await ctx.send(embed=embed)
+            
+            # Send notification
+            await self.send_notification(
+                ctx.guild,
+                f"🏢 **New Company Created**\n{ctx.author.mention} has created a new company called '{company_name}'!"
+            )
         else:
             await ctx.send(f"Error: {result['message']}")
             
@@ -85,13 +118,40 @@ class Company(BaseCog):
             else:
                 employees.append(f"User {emp_id}")
                 
+        # Calculate activity bonus
+        total_members = len(employees) + 1  # +1 for owner
+        
+        # Base bonus based on creator role
+        creator_role_id = company_data.get("creator_role_id")
+        if creator_role_id == 1352694494797234237:  # level 35
+            base_bonus = 25
+            role_name = "level 35"
+        elif creator_role_id == 1352694494813749299:  # level 50
+            base_bonus = 50
+            role_name = "level 50"
+        else:
+            base_bonus = 10
+            role_name = "default"
+            
+        # Extra bonus for companies with more than 5 members
+        bonus_amount = base_bonus
+        if total_members > 5:
+            bonus_amount += 25
+        
+        # Create an embed for company info
         embed = discord.Embed(
             title=f"{company_data['name']} - Company Info",
             color=discord.Color.blue()
         )
         embed.add_field(name="Owner", value=owner_name, inline=False)
         embed.add_field(name="Created", value=company_data["created_at"].strftime("%Y-%m-%d"), inline=True)
-        embed.add_field(name="Employees", value=len(employees), inline=True)
+        embed.add_field(name="Members", value=f"{total_members}/{self.max_company_members}", inline=True)
+        
+        # Activity bonus info
+        bonus_text = f"${bonus_amount} per active member per hour"
+        if total_members > 5:
+            bonus_text += f" (includes +$25 bonus for having more than 5 members)"
+        embed.add_field(name="Activity Bonus", value=bonus_text, inline=False)
         
         if employees:
             embed.add_field(name="Employee List", value=", ".join(employees[:10]) + 
@@ -114,6 +174,12 @@ class Company(BaseCog):
         
         if not company_data:
             await ctx.send("You don't own a company!")
+            return
+            
+        # Check if the company has reached its member limit
+        employee_count = len(company_data.get("employees", []))
+        if employee_count >= self.max_company_members - 1:  # -1 for the owner
+            await ctx.send(f"Your company has reached the maximum member limit of {self.max_company_members}!")
             return
             
         # Check if invitee is already in a company
@@ -148,7 +214,38 @@ class Company(BaseCog):
                 result = self.db.add_employee_to_company(company_data["id"], invitee_id)
                 
                 if result["success"]:
-                    await ctx.send(f"{member.mention} has joined {company_data['name']}!")
+                    # Check if this pushed the company above 5 members
+                    if result.get("unlocked_bonus", False):
+                        # Get creator role info to calculate base bonus
+                        creator_role_id = result.get("creator_role_id")
+                        if creator_role_id == 1352694494797234237:  # level 35
+                            base_bonus = 25
+                        elif creator_role_id == 1352694494813749299:  # level 50
+                            base_bonus = 50
+                        else:
+                            base_bonus = 10
+                            
+                        # Format the bonus message with company info
+                        bonus_message = (
+                            f"🎉 **BONUS UNLOCKED!** 🎉\n"
+                            f"{member.mention} has joined {result['company_name']}! "
+                            f"The company now has 6 members and qualifies for the +$25 bonus per active member!\n"
+                            f"New activity bonus: ${base_bonus + 25} per active member per hour"
+                        )
+                        
+                        # Send notification
+                        await ctx.send(bonus_message)
+                        
+                        # Also notify the channel if configured
+                        if self.notification_channel:
+                            try:
+                                channel = ctx.guild.get_channel(self.notification_channel_id)
+                                if channel:
+                                    await channel.send(bonus_message)
+                            except:
+                                pass
+                    else:
+                        await ctx.send(f"{member.mention} has joined {company_data['name']}!")
                 else:
                     await ctx.send(f"Error: {result['message']}")
             else:
@@ -175,10 +272,48 @@ class Company(BaseCog):
             await ctx.send("As the owner, you cannot leave your company. Use `!disband` to disband it instead.")
             return
             
+        # Calculate current member count
+        current_member_count = len(company_data.get("employees", [])) + 1  # +1 for owner
+        
         # Remove user from company
         result = self.db.remove_employee_from_company(company_data["id"], user_id)
         
         if result["success"]:
+            # Check if this causes the company to lose their bonus (going from 6 to 5 members)
+            if current_member_count == 6:
+                # Get updated company data
+                updated_company = self.db.get_company_by_id(company_data["id"])
+                if updated_company:
+                    # Get owner name for notification
+                    owner = ctx.guild.get_member(updated_company["owner_id"])
+                    owner_name = owner.mention if owner else f"User {updated_company['owner_id']}"
+                    
+                    # Calculate base bonus based on creator role
+                    creator_role_id = updated_company.get("creator_role_id")
+                    if creator_role_id == 1352694494797234237:  # level 35
+                        base_bonus = 25
+                    elif creator_role_id == 1352694494813749299:  # level 50
+                        base_bonus = 50
+                    else:
+                        base_bonus = 10
+                        
+                    bonus_message = (
+                        f"**NOTICE:** {company_data['name']} now has 5 members and has lost the +$25 "
+                        f"activity bonus! The company now earns ${base_bonus} per active member per hour."
+                    )
+                    await ctx.send(bonus_message)
+                    
+                    # Also notify the owner
+                    if owner:
+                        try:
+                            await owner.send(
+                                f"Your company '{updated_company['name']}' now has 5 members and has lost the "
+                                f"+$25 activity bonus. The company now earns ${base_bonus} per active member per hour."
+                            )
+                        except:
+                            # DM failed, we already sent to channel
+                            pass
+            
             await ctx.send(f"You have left '{company_data['name']}'!")
         else:
             await ctx.send(f"Error: {result['message']}")
@@ -262,47 +397,76 @@ class Company(BaseCog):
         await ctx.send(embed=embed)
 
 # Slash command versions
-    @app_commands.command(name="createcompany", description="Create a new company (requires higher role)")
+    @app_commands.command(name="createcompany", description="Create a new company (requires level 35 or level 50 role)")
     @app_commands.describe(company_name="The name of your new company")
     async def create_company_slash(self, interaction: discord.Interaction, company_name: str):
         """Slash command for creating a company."""
         user_id = interaction.user.id
         
-        # Check if user has permission to create a company (higher role)
-        # Higher roles are: Owner, Admin, Moderator/staff, level 50, level 35
-        allowed_role_ids = [
-            "1352694494843240448",  # Owner
-            "1352694494813749308",  # Admin
-            "1352694494813749307",  # Moderator/staff
-            "1352694494813749299",  # level 50
-            "1352694494797234237"   # level 35
-        ]
-        
-        has_permission = False
+        # Check if user has the necessary role to create a company
+        creator_role_id = None
         for role in interaction.user.roles:
-            if str(role.id) in allowed_role_ids:
-                has_permission = True
+            if role.id in self.creator_role_ids:
+                creator_role_id = role.id
+                role_name = role.name
                 break
                 
-        if not has_permission:
+        if not creator_role_id:
             await interaction.response.send_message(
-                "You don't have permission to create a company! You need a higher role.",
+                "You need the 'level 35' or 'level 50' role to create a company!",
                 ephemeral=True
             )
             return
             
-        # Attempt to create the company
-        result = self.db.create_company(user_id, company_name)
+        # Check if user already has a company
+        existing_company = self.db.get_user_owned_company(user_id)
+        if existing_company:
+            await interaction.response.send_message(
+                f"You already own a company called '{existing_company['name']}'!",
+                ephemeral=True
+            )
+            return
+            
+        # Check if user already belongs to a company
+        user_company = self.db.get_user_company(user_id)
+        if user_company:
+            await interaction.response.send_message(
+                f"You're already a member of '{user_company['name']}'. You must leave it first!",
+                ephemeral=True
+            )
+            return
+            
+        # Check if company name already exists
+        if self.db.get_company_by_name(company_name):
+            await interaction.response.send_message(
+                f"A company with the name '{company_name}' already exists!",
+                ephemeral=True
+            )
+            return
+            
+        # Attempt to create the company with creator role ID
+        result = self.db.create_company(user_id, company_name, creator_role_id)
         
         if result["success"]:
+            # Calculate bonus based on role
+            bonus = 25 if creator_role_id == 1352694494797234237 else 50  # 25$ for level 35, 50$ for level 50
+            
             embed = discord.Embed(
                 title="Company Created",
                 description=f"Congratulations! You've created '{company_name}'!",
                 color=discord.Color.green()
             )
             embed.add_field(name="Owner", value=interaction.user.mention, inline=False)
+            embed.add_field(name="Activity Bonus", value=f"${bonus} per hour per active member", inline=False)
+            embed.add_field(name="Member Limit", value=f"Maximum of {self.max_company_members} members", inline=False)
             embed.add_field(name="Next Steps", value="Invite members using `/invite`", inline=False)
             await interaction.response.send_message(embed=embed)
+            
+            # Send notification
+            await self.send_notification(
+                interaction.guild,
+                f"🏢 **New Company Created**\n{interaction.user.mention} has created a new company called '{company_name}'!"
+            )
         else:
             await interaction.response.send_message(f"Error: {result['message']}", ephemeral=True)
     
@@ -345,13 +509,40 @@ class Company(BaseCog):
             else:
                 employees.append(f"User {emp_id}")
                 
+        # Calculate activity bonus
+        total_members = len(employees) + 1  # +1 for owner
+        
+        # Base bonus based on creator role
+        creator_role_id = company_data.get("creator_role_id")
+        if creator_role_id == 1352694494797234237:  # level 35
+            base_bonus = 25
+            role_name = "level 35"
+        elif creator_role_id == 1352694494813749299:  # level 50
+            base_bonus = 50
+            role_name = "level 50"
+        else:
+            base_bonus = 10
+            role_name = "default"
+            
+        # Extra bonus for companies with more than 5 members
+        bonus_amount = base_bonus
+        if total_members > 5:
+            bonus_amount += 25
+        
+        # Create an embed for company info
         embed = discord.Embed(
             title=f"{company_data['name']} - Company Info",
             color=discord.Color.blue()
         )
         embed.add_field(name="Owner", value=owner_name, inline=False)
         embed.add_field(name="Created", value=company_data["created_at"].strftime("%Y-%m-%d"), inline=True)
-        embed.add_field(name="Employees", value=len(employees), inline=True)
+        embed.add_field(name="Members", value=f"{total_members}/{self.max_company_members}", inline=True)
+        
+        # Activity bonus info
+        bonus_text = f"${bonus_amount} per active member per hour"
+        if total_members > 5:
+            bonus_text += f" (includes +$25 bonus for having more than 5 members)"
+        embed.add_field(name="Activity Bonus", value=bonus_text, inline=False)
         
         if employees:
             embed.add_field(name="Employee List", value=", ".join(employees[:10]) + 
@@ -377,6 +568,15 @@ class Company(BaseCog):
             await interaction.response.send_message("You don't own a company!", ephemeral=True)
             return
             
+        # Check if the company has reached its member limit
+        employee_count = len(company_data.get("employees", []))
+        if employee_count >= self.max_company_members - 1:  # -1 for the owner
+            await interaction.response.send_message(
+                f"Your company has reached the maximum member limit of {self.max_company_members}!",
+                ephemeral=True
+            )
+            return
+            
         # Check if invitee is already in a company
         user_company = self.db.get_user_company(invitee_id)
         if user_company:
@@ -385,6 +585,9 @@ class Company(BaseCog):
                 ephemeral=True
             )
             return
+        
+        # Get current member count
+        current_member_count = len(company_data.get("employees", [])) + 1  # +1 for owner
         
         # Create an invitation embed
         embed = discord.Embed(
@@ -397,6 +600,14 @@ class Company(BaseCog):
             value=f"To accept this invitation, type `!invite {interaction.user.display_name}` in the chat and react with ✅.", 
             inline=False
         )
+        
+        # Bonus notification for reaching 6 members
+        if current_member_count == 5:  # Will become 6 members when accepted
+            embed.add_field(
+                name="Special Notice",
+                value="This invitation will push the company to 6 members, unlocking the +$25 per active member bonus!",
+                inline=False
+            )
         
         # Send invitation
         await interaction.response.send_message(
@@ -424,10 +635,50 @@ class Company(BaseCog):
             )
             return
             
+        # Calculate current member count
+        current_member_count = len(company_data.get("employees", [])) + 1  # +1 for owner
+        
         # Remove user from company
         result = self.db.remove_employee_from_company(company_data["id"], user_id)
         
         if result["success"]:
+            # Check if this causes the company to lose their bonus (going from 6 to 5 members)
+            if current_member_count == 6:
+                # Get updated company data
+                updated_company = self.db.get_company_by_id(company_data["id"])
+                if updated_company:
+                    # Get owner for notification
+                    owner = interaction.guild.get_member(updated_company["owner_id"])
+                    
+                    # Calculate base bonus based on creator role
+                    creator_role_id = updated_company.get("creator_role_id")
+                    if creator_role_id == 1352694494797234237:  # level 35
+                        base_bonus = 25
+                    elif creator_role_id == 1352694494813749299:  # level 50
+                        base_bonus = 50
+                    else:
+                        base_bonus = 10
+                        
+                    bonus_message = (
+                        f"**NOTICE:** {company_data['name']} now has 5 members and has lost the +$25 "
+                        f"activity bonus! The company now earns ${base_bonus} per active member per hour."
+                    )
+                    
+                    # Send public notice in channel
+                    await interaction.followup.send(bonus_message)
+                    
+                    # Also notify the owner via DM
+                    if owner:
+                        try:
+                            await owner.send(
+                                f"Your company '{updated_company['name']}' now has 5 members and has lost the "
+                                f"+$25 activity bonus. The company now earns ${base_bonus} per active member per hour."
+                            )
+                        except:
+                            # DM failed, we already sent to channel
+                            pass
+            
+            # Send the primary success message
             await interaction.response.send_message(f"You have left '{company_data['name']}'!")
         else:
             await interaction.response.send_message(f"Error: {result['message']}", ephemeral=True)

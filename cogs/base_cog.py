@@ -12,8 +12,13 @@ class BaseCog(commands.Cog):
     async def sync_slash_commands(self):
         """Sync slash commands for the current cog."""
         try:
-            await self.bot.tree.sync()
-            logging.info(f"Synced slash commands for {self.__class__.__name__}")
+            # Sync for the current guild if available, otherwise globally
+            if hasattr(self, 'guild') and self.guild:
+                await self.bot.tree.sync(guild=self.guild)
+                logging.info(f"Synced slash commands for {self.__class__.__name__} in guild {self.guild.name}")
+            else:
+                await self.bot.tree.sync()
+                logging.info(f"Synced slash commands globally for {self.__class__.__name__}")
         except Exception as e:
             logging.error(f"Failed to sync slash commands for {self.__class__.__name__}: {e}")
     

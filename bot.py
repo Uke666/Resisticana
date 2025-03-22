@@ -336,6 +336,48 @@ async def info_slash(interaction: discord.Interaction):
     
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
+# Admin commands
+@bot.command(name="sync")
+@commands.has_permissions(administrator=True)
+async def sync_commands(ctx):
+    """Manually sync slash commands (admin only)."""
+    try:
+        logging.info(f"Admin {ctx.author.name} manually syncing slash commands")
+        await bot.tree.sync()
+        await ctx.send("✅ Slash commands synced globally!")
+    except Exception as e:
+        logging.error(f"Manual sync error: {e}")
+        await ctx.send(f"❌ Error syncing slash commands: {e}")
+
+@bot.tree.command(name="admin_sync", description="Manually sync slash commands (admin only)")
+@app_commands.checks.has_permissions(administrator=True)
+async def sync_commands_slash(interaction: discord.Interaction):
+    """Slash command for manually syncing commands."""
+    try:
+        logging.info(f"Admin {interaction.user.name} manually syncing slash commands")
+        await bot.tree.sync()
+        await interaction.response.send_message("✅ Slash commands synced globally!", ephemeral=True)
+    except Exception as e:
+        logging.error(f"Manual sync error: {e}")
+        await interaction.response.send_message(f"❌ Error syncing slash commands: {e}", ephemeral=True)
+        
+# Error handlers for permission checks
+@sync_commands.error
+async def sync_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("❌ You need administrator permissions to use this command!")
+    else:
+        logging.error(f"Sync command error: {error}")
+        await ctx.send(f"❌ An error occurred: {error}")
+
+@sync_commands_slash.error
+async def sync_slash_error(interaction: discord.Interaction, error):
+    if isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message("❌ You need administrator permissions to use this command!", ephemeral=True)
+    else:
+        logging.error(f"Sync slash command error: {error}")
+        await interaction.response.send_message(f"❌ An error occurred: {error}", ephemeral=True)
+
 def run_bot(token):
     """Run the bot with the given token."""
     bot.run(token)
