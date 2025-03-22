@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from discord import app_commands
+from discord import app_commands, utils
 import asyncio
 import datetime
 from utils.database import Database
@@ -70,8 +70,8 @@ class Moderation(BaseCog):
         # Deduct money
         self.db.remove_money(user_id, BOMB_COST)
         
-        # Apply timeout
-        end_time = datetime.datetime.utcnow() + datetime.timedelta(seconds=timeout_duration)
+        # Apply timeout with timezone-aware datetime
+        end_time = utils.utcnow() + datetime.timedelta(seconds=timeout_duration)
         try:
             await member.timeout(end_time, reason=f"Bombed by {ctx.author.display_name}")
             
@@ -213,8 +213,8 @@ class Moderation(BaseCog):
         # Deduct money
         self.db.remove_money(user_id, BOMB_COST)
         
-        # Apply timeout
-        end_time = datetime.datetime.utcnow() + datetime.timedelta(seconds=timeout_duration)
+        # Apply timeout with timezone-aware datetime
+        end_time = utils.utcnow() + datetime.timedelta(seconds=timeout_duration)
         try:
             await user.timeout(end_time, reason=f"Bombed by {interaction.user.display_name}")
             
