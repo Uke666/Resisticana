@@ -5,6 +5,7 @@ import random
 import asyncio
 from datetime import datetime, timedelta
 import logging
+from typing import Optional
 from utils.database import Database
 from utils.quests import QuestGenerator
 from cogs.base_cog import BaseCog
@@ -175,7 +176,7 @@ class Economy(BaseCog):
             await ctx.send(f"Error: {result['message']}")
             
     @commands.command(name="request", aliases=["req"])
-    async def request_money(self, ctx, recipient: discord.Member, amount: int, *, reason: str = None):
+    async def request_money(self, ctx, recipient: discord.Member, amount: int, *, reason: str = ""):
         """Request money from another user."""
         if amount <= 0:
             await ctx.send("Amount must be positive!")
@@ -791,6 +792,162 @@ class Economy(BaseCog):
             )
         
         await interaction.response.send_message(embed=embed)
+        
+    @app_commands.command(name="request", description="Request money from another user")
+    @app_commands.describe(
+        user="The user to request money from",
+        amount="Amount of money to request",
+        reason="Reason for the request (optional)"
+    )
+    async def request_money_slash(self, interaction: discord.Interaction, user: discord.Member, amount: int, reason: str = ""):
+        """Slash command for requesting money."""
+        if amount <= 0:
+            await interaction.response.send_message("Amount must be positive!", ephemeral=True)
+            return
+            
+        requester_id = interaction.user.id
+        recipient_id = user.id
+        
+        if requester_id == recipient_id:
+            await interaction.response.send_message("You can't request money from yourself!", ephemeral=True)
+            return
+            
+        # Create the request
+        request = self.db.create_money_request(requester_id, recipient_id, amount, reason)
+        
+        # Create embed for requester
+        requester_embed = discord.Embed(
+            title="Money Request Sent",
+            description=f"You've requested ${amount} from {user.display_name}!",
+            color=discord.Color.blue()
+        )
+        if reason:
+            requester_embed.add_field(name="Reason", value=reason, inline=False)
+        requester_embed.add_field(name="Request ID", value=f"#{request['id']}", inline=True)
+        await interaction.response.send_message(embed=requester_embed)
+        
+        # Send notification to recipient
+        try:
+            recipient_embed = discord.Embed(
+                title="Money Request Received",
+                description=f"{interaction.user.display_name} has requested ${amount} from you!",
+                color=discord.Color.blue()
+            )
+            if reason:
+                recipient_embed.add_field(name="Reason", value=reason, inline=False)
+            recipient_embed.add_field(name="Request ID", value=f"#{request['id']}", inline=True)
+            recipient_embed.add_field(
+                name="How to respond", 
+                value=f"Use `/transfer {interaction.user.display_name} {amount}` to accept\nor `/reject {request['id']}` to decline", 
+                inline=False
+            )
+            
+            # Try to DM the recipient
+            await user.send(embed=recipient_embed)
+        except discord.Forbidden:
+            # If DM is blocked, we'll just continue
+            pass
+            
+    @app_commands.command(name="requests", description="View your pending money requests")
+    async def view_requests_slash(self, interaction: discord.Interaction):
+        """Slash command for viewing pending requests."""
+        user_id = interaction.user.id
+        
+        # Get all pending requests
+        requests = self.db.get_pending_requests(user_id)
+        
+        if not requests:
+            await interaction.response.send_message("You don't have any pending money requests!", ephemeral=True)
+            return
+            
+        # Create embed for requests
+        embed = discord.Embed(
+            title="Your Pending Money Requests",
+            description=f"You have {len(requests)} pending requests.",
+            color=discord.Color.blue()
+        )
+        
+        # Add received requests
+        received_requests = [req for req in requests if req["recipient_id"] == user_id]
+        if received_requests:
+            received_text = ""
+            for req in received_requests[:5]:  # Show only top 5
+                requester = interaction.guild.get_member(req["requester_id"])
+                requester_name = requester.display_name if requester else f"User {req['requester_id']}"
+                reason_text = f" - {req['reason']}" if req["reason"] else ""
+                received_text += f"#{req['id']} | From: {requester_name} | Amount: ${req['amount']}{reason_text}\n"
+            
+            embed.add_field(name="Money Requested From You", value=received_text or "None", inline=False)
+        
+        # Add sent requests
+        sent_requests = [req for req in requests if req["requester_id"] == user_id]
+        if sent_requests:
+            sent_text = ""
+            for req in sent_requests[:5]:  # Show only top 5
+                recipient = interaction.guild.get_member(req["recipient_id"])
+                recipient_name = recipient.display_name if recipient else f"User {req['recipient_id']}"
+                reason_text = f" - {req['reason']}" if req["reason"] else ""
+                sent_text += f"#{req['id']} | To: {recipient_name} | Amount: ${req['amount']}{reason_text}\n"
+            
+            embed.add_field(name="Money You Requested", value=sent_text or "None", inline=False)
+        
+        embed.set_footer(text="Use /transfer to accept or /reject to decline")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        
+    @app_commands.command(name="reject", description="Reject a money request")
+    @app_commands.describe(
+        request_id="The ID of the request to reject"
+    )
+    async def reject_request_slash(self, interaction: discord.Interaction, request_id: int):
+        """Slash command for rejecting money requests."""
+        user_id = interaction.user.id
+        
+        # Get the request
+        request = self.db.get_request_by_id(request_id)
+        
+        if not request:
+            await interaction.response.send_message("Request not found!", ephemeral=True)
+            return
+            
+        # Check if the user is the recipient of this request
+        if request["recipient_id"] != user_id:
+            await interaction.response.send_message("You can only reject requests sent to you!", ephemeral=True)
+            return
+            
+        # Check if the request is still pending
+        if request["status"] != "pending":
+            await interaction.response.send_message("This request has already been resolved!", ephemeral=True)
+            return
+            
+        # Resolve the request (decline)
+        result = self.db.resolve_money_request(request_id, accept=False)
+        
+        if result["success"]:
+            # Notify the requester
+            requester = interaction.guild.get_member(request["requester_id"])
+            
+            # Create embed for recipient (current user)
+            recipient_embed = discord.Embed(
+                title="Request Rejected",
+                description=f"You've rejected the money request #{request_id}.",
+                color=discord.Color.red()
+            )
+            await interaction.response.send_message(embed=recipient_embed)
+            
+            # Try to notify the requester
+            if requester:
+                try:
+                    requester_embed = discord.Embed(
+                        title="Money Request Rejected",
+                        description=f"{interaction.user.display_name} has rejected your request for ${request['amount']}.",
+                        color=discord.Color.red()
+                    )
+                    await requester.send(embed=requester_embed)
+                except discord.Forbidden:
+                    # If DM is blocked, we'll just skip notification
+                    pass
+        else:
+            await interaction.response.send_message(f"Error: {result['message']}", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Economy(bot))
