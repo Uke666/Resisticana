@@ -313,6 +313,25 @@ async def info(ctx):
     
     await ctx.send(embed=embed)
 
+@bot.tree.command(name="startbot", description="Start the bot (Admin only)")
+@app_commands.checks.has_permissions(administrator=True)
+async def start_bot_slash(interaction: discord.Interaction):
+    """Start the bot if it's not already running."""
+    if bot.is_ready():
+        await interaction.response.send_message("Bot is already running!", ephemeral=True)
+        return
+        
+    try:
+        await interaction.response.send_message("Starting bot...", ephemeral=True)
+        # Get token and start bot
+        token = os.getenv("DISCORD_TOKEN")
+        if not token:
+            await interaction.followup.send("Error: DISCORD_TOKEN not found!", ephemeral=True)
+            return
+        await bot.start(token)
+    except Exception as e:
+        await interaction.followup.send(f"Error starting bot: {e}", ephemeral=True)
+
 @bot.tree.command(name="info", description="Display information about the bot")
 async def info_slash(interaction: discord.Interaction):
     embed = discord.Embed(
