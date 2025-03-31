@@ -1,3 +1,4 @@
+
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -158,6 +159,57 @@ class Betting(BaseCog):
         embed.add_field(name="Number of Winners", value=str(len(winning_bets)), inline=True)
 
         await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="mybet", description="View your active bet on an event")
+    @app_commands.describe(bet_id="The ID of the bet")
+    async def view_my_bet(self, interaction: discord.Interaction, bet_id: int):
+        if bet_id not in self.active_bets:
+            await interaction.response.send_message("Bet not found!", ephemeral=True)
+            return
+
+        bet = self.active_bets[bet_id]
+        user_id = interaction.user.id
+
+        if user_id not in bet['participants']:
+            await interaction.response.send_message("You haven't placed a bet on this event!", ephemeral=True)
+            return
+
+        user_bet = bet['participants'][user_id]
+        embed = discord.Embed(
+            title="Your Bet Details",
+            description=bet['description'],
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="Your Choice", value=user_bet['option'], inline=True)
+        embed.add_field(name="Amount Bet", value=f"${user_bet['amount']}", inline=True)
+        embed.add_field(name="Placed At", value=user_bet['placed_at'].strftime("%Y-%m-%d %H:%M UTC"), inline=True)
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="cancelbet", description="Cancel your bet and get a refund (if bet is still open)")
+    @app_commands.describe(bet_id="The ID of the bet to cancel")
+    async def cancel_bet(self, interaction: discord.Interaction, bet_id: int):
+        if bet_id not in self.active_bets:
+            await interaction.response.send_message("Bet not found!", ephemeral=True)
+            return
+
+        bet = self.active_bets[bet_id]
+        user_id = interaction.user.id
+
+        if bet['status'] != 'open':
+            await interaction.response.send_message("This bet is no longer open for cancellation!", ephemeral=True)
+            return
+
+        if user_id not in bet['participants']:
+            await interaction.response.send_message("You haven't placed a bet on this event!", ephemeral=True)
+            return
+
+        # Refund the bet amount
+        refund_amount = bet['participants'][user_id]['amount']
+        self.db.add_money(user_id, refund_amount)
+        del bet['participants'][user_id]
+
+        await interaction.response.send_message(f"Your bet has been cancelled and ${refund_amount} has been refunded to your wallet.")
 
     async def analyze_event(self, description):
         """Analyze event description to generate smart betting options."""
