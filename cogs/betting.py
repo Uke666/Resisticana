@@ -268,4 +268,13 @@ class Betting(BaseCog):
             return None
 
 async def setup(bot):
-    await bot.add_cog(Betting(bot))
+    cog = Betting(bot)
+    await bot.add_cog(cog)
+    try:
+        # Register commands for this guild only to avoid rate limits
+        guild = discord.Object(id=bot.default_guild_id)  # Make sure default_guild_id is set in your bot
+        bot.tree.copy_global_to(guild=guild)
+        await bot.tree.sync(guild=guild)
+        logging.info("Successfully registered betting commands")
+    except Exception as e:
+        logging.error(f"Failed to sync betting commands: {e}")
