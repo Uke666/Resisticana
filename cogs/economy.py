@@ -51,6 +51,8 @@ class Economy(BaseCog):
                 color=discord.Color.green()
             )
             embed.add_field(name="New Balance", value=f"${result['new_balance']}")
+            # Log the transaction
+            self.db.log_transaction(None, ctx.author.id, 100, "daily", "Daily reward claimed")
             await ctx.send(embed=embed)
         else:
             # Calculate time until next reward
@@ -898,6 +900,71 @@ class Economy(BaseCog):
     @app_commands.describe(
         request_id="The ID of the request to reject"
     )
+    @commands.command(name="history", aliases=["transactions"])
+    async def transaction_history(self, ctx, limit: int = 5):
+        """View your recent transaction history."""
+        user_id = ctx.author.id
+        transactions = self.db.get_user_transactions(user_id, limit)
+        
+        if not transactions:
+            await ctx.send("You don't have any transactions yet!")
+            return
+            
+        embed = discord.Embed(
+            title=f"Transaction History for {ctx.author.display_name}",
+            color=discord.Color.blue()
+        )
+        
+        for tx in transactions:
+            # Format transaction details
+            if tx["sender_id"] == user_id:
+                description = f"Sent ${tx['amount']} to {ctx.guild.get_member(tx['recipient_id']).display_name}"
+            else:
+                sender = "System" if tx["sender_id"] is None else ctx.guild.get_member(tx["sender_id"]).display_name
+                description = f"Received ${tx['amount']} from {sender}"
+                
+            timestamp = datetime.fromisoformat(tx["timestamp"])
+            embed.add_field(
+                name=f"{tx['type']} - {timestamp.strftime('%Y-%m-%d %H:%M')}",
+                value=f"{description}\n{tx['message'] if tx['message'] else ''}",
+                inline=False
+            )
+            
+        await ctx.send(embed=embed)
+
+    @app_commands.command(name="history", description="View your recent transaction history")
+    @app_commands.describe(limit="Number of transactions to show (default: 5)")
+    async def transaction_history_slash(self, interaction: discord.Interaction, limit: int = 5):
+        """Slash command for viewing transaction history."""
+        user_id = interaction.user.id
+        transactions = self.db.get_user_transactions(user_id, limit)
+        
+        if not transactions:
+            await interaction.response.send_message("You don't have any transactions yet!", ephemeral=True)
+            return
+            
+        embed = discord.Embed(
+            title=f"Transaction History for {interaction.user.display_name}",
+            color=discord.Color.blue()
+        )
+        
+        for tx in transactions:
+            # Format transaction details
+            if tx["sender_id"] == user_id:
+                description = f"Sent ${tx['amount']} to {interaction.guild.get_member(tx['recipient_id']).display_name}"
+            else:
+                sender = "System" if tx["sender_id"] is None else interaction.guild.get_member(tx["sender_id"]).display_name
+                description = f"Received ${tx['amount']} from {sender}"
+                
+            timestamp = datetime.fromisoformat(tx["timestamp"])
+            embed.add_field(
+                name=f"{tx['type']} - {timestamp.strftime('%Y-%m-%d %H:%M')}",
+                value=f"{description}\n{tx['message'] if tx['message'] else ''}",
+                inline=False
+            )
+            
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
     async def reject_request_slash(self, interaction: discord.Interaction, request_id: int):
         """Slash command for rejecting money requests."""
         user_id = interaction.user.id

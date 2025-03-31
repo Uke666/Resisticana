@@ -642,14 +642,48 @@ class Database:
         return result
         
     def log_transaction(self, sender_id, recipient_id, amount, transaction_type, message=None):
-        """Log a money transaction for notification purposes.
+        """Log a money transaction for notification purposes."""
+        history_file = 'data/transaction_history.json'
         
-        Args:
-            sender_id: The user ID sending the money (or None for system transactions)
-            recipient_id: The user ID receiving the money
-            amount: The amount of money transferred
-            transaction_type: The type of transaction (daily, transfer, quest, etc.)
-            message: Optional message about the transaction
-        """
-        # For future implementation if needed - this would store all transaction history
-        pass
+        # Load transaction history
+        if not os.path.exists(history_file):
+            self.save_json(history_file, {"transactions": [], "next_id": 1})
+            
+        history = self.load_json(history_file)
+        
+        # Create transaction record
+        transaction = {
+            "id": history["next_id"],
+            "sender_id": sender_id,
+            "recipient_id": recipient_id,
+            "amount": amount,
+            "type": transaction_type,
+            "message": message,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Add transaction and increment ID
+        history["transactions"].append(transaction)
+        history["next_id"] += 1
+        
+        # Save updated history
+        self.save_json(history_file, history)
+        
+    def get_user_transactions(self, user_id, limit=10):
+        """Get transaction history for a user."""
+        history_file = 'data/transaction_history.json'
+        
+        if not os.path.exists(history_file):
+            return []
+            
+        history = self.load_json(history_file)
+        
+        # Get transactions where user is sender or recipient
+        user_transactions = [
+            t for t in history["transactions"]
+            if t["sender_id"] == user_id or t["recipient_id"] == user_id
+        ]
+        
+        # Sort by timestamp (newest first) and limit
+        user_transactions.sort(key=lambda x: x["timestamp"], reverse=True)
+        return user_transactions[:limit]
