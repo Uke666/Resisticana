@@ -1,4 +1,21 @@
 {
-  "active_bets": {},
+  "active_bets": {
+    "0": {
+      "creator_id": 1213811705709203530,
+      "description": "Who will win today's IPL?",
+      "options": [
+        "Win by 30+ runs",
+        "Win by 10-29 runs",
+        "Win by 6+ wickets",
+        "Win by 1-5 wickets",
+        "Super Over finish"
+      ],
+      "participants": {},
+      "status": "open",
+      "created_at": "2025-03-31T18:28:39.872482",
+      "end_time": "2025-04-01T06:28:39.872457",
+      "result": null
+    }
+  },
   "resolved_bets": {}
 }

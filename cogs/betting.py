@@ -165,8 +165,18 @@ class Betting(BaseCog):
         await interaction.response.send_message(embed=embed)
 
     @commands.command(name="placebet")
-    async def placebet_prefix(self, ctx, bet_id: int, choice: str, amount: int):
+    async def placebet_prefix(self, ctx, bet_id_str, choice: str, amount: int):
         """Place a bet on an event."""
+        # Handle bet_id that might be formatted as #123
+        try:
+            if bet_id_str.startswith('#'):
+                bet_id = int(bet_id_str[1:])
+            else:
+                bet_id = int(bet_id_str)
+        except ValueError:
+            await ctx.send("Invalid bet ID! Please provide a number.")
+            return
+            
         if bet_id not in self.active_bets:
             await ctx.send("Bet not found!")
             return
@@ -363,8 +373,18 @@ class Betting(BaseCog):
 
     @commands.command(name="resolvebet")
     @commands.has_permissions(administrator=True)
-    async def resolvebet_prefix(self, ctx, bet_id: int, winner: str):
+    async def resolvebet_prefix(self, ctx, bet_id_str, winner: str):
         """Resolve a bet and distribute winnings (admin only)."""
+        # Handle bet_id that might be formatted as #123
+        try:
+            if bet_id_str.startswith('#'):
+                bet_id = int(bet_id_str[1:])
+            else:
+                bet_id = int(bet_id_str)
+        except ValueError:
+            await ctx.send("Invalid bet ID! Please provide a number.")
+            return
+            
         if bet_id not in self.active_bets:
             await ctx.send("Bet not found!")
             return
@@ -477,8 +497,18 @@ class Betting(BaseCog):
         await interaction.response.send_message(embed=embed)
 
     @commands.command(name="mybet")
-    async def mybet_prefix(self, ctx, bet_id: int):
+    async def mybet_prefix(self, ctx, bet_id_str):
         """View your active bet on an event."""
+        # Handle bet_id that might be formatted as #123
+        try:
+            if bet_id_str.startswith('#'):
+                bet_id = int(bet_id_str[1:])
+            else:
+                bet_id = int(bet_id_str)
+        except ValueError:
+            await ctx.send("Invalid bet ID! Please provide a number.")
+            return
+            
         if bet_id not in self.active_bets:
             await ctx.send("Bet not found!")
             return
@@ -667,8 +697,18 @@ class Betting(BaseCog):
         await interaction.response.send_message(embed=embed)
             
     @commands.command(name="cancelbet")
-    async def cancelbet_prefix(self, ctx, bet_id: int):
+    async def cancelbet_prefix(self, ctx, bet_id_str):
         """Cancel your bet and get a refund (if bet is still open)."""
+        # Handle bet_id that might be formatted as #123
+        try:
+            if bet_id_str.startswith('#'):
+                bet_id = int(bet_id_str[1:])
+            else:
+                bet_id = int(bet_id_str)
+        except ValueError:
+            await ctx.send("Invalid bet ID! Please provide a number.")
+            return
+            
         if bet_id not in self.active_bets:
             await ctx.send("Bet not found!")
             return
