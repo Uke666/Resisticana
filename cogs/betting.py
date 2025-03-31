@@ -19,8 +19,7 @@ class Betting(BaseCog):
         self.bet_results = {}
         self.openai_client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-    @commands.command(name="createbet")
-    @app_commands.command(name="createbet", description="Create a new betting event")
+    @commands.hybrid_command(name="createbet", description="Create a new betting event")
     @app_commands.describe(event_description="Description of the betting event")
     async def create_bet(self, ctx, *, event_description: str):
         """Create a new betting event."""
@@ -63,8 +62,7 @@ class Betting(BaseCog):
         else:
             await ctx.response.send_message(embed=embed)
 
-    @commands.command(name="placebet")
-    @app_commands.command(name="placebet", description="Place a bet on an event")
+    @commands.hybrid_command(name="placebet", description="Place a bet on an event")
     @app_commands.describe(bet_id="The ID of the bet", choice="Your betting choice", amount="Amount to bet")
     async def place_bet(self, ctx, bet_id: int, choice: str, amount: int):
         """Place a bet on an event."""
@@ -127,8 +125,7 @@ class Betting(BaseCog):
             else:
                 await ctx.response.send_message(error_msg, ephemeral=True)
 
-    @commands.command(name="activebets")
-    @app_commands.command(name="activebets", description="View all active betting events")
+    @commands.hybrid_command(name="activebets", description="View all active betting events")
     async def view_active_bets(self, ctx):
         """View all active betting events."""
         active_bets = {bid: bet for bid, bet in self.active_bets.items() if bet['status'] == 'open'}
@@ -161,11 +158,9 @@ class Betting(BaseCog):
         else:
             await ctx.response.send_message(embed=embed)
 
-    @commands.command(name="resolvebet")
-    @app_commands.command(name="resolvebet", description="Resolve a bet and distribute winnings")
+    @commands.hybrid_command(name="resolvebet", description="Resolve a bet and distribute winnings")
     @app_commands.describe(bet_id="The ID of the bet to resolve", winner="The winning option")
     @commands.has_permissions(administrator=True)
-    @app_commands.checks.has_permissions(administrator=True)
     async def resolve_bet(self, ctx, bet_id: int, winner: str):
         """Resolve a bet and distribute winnings."""
         if bet_id not in self.active_bets:
