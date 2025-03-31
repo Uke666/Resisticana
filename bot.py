@@ -525,4 +525,19 @@ async def sync_slash_error(interaction: discord.Interaction, error):
 
 def run_bot(token):
     """Run the bot with the given token."""
+    import functools
+    from app import app
+    
+    # Create a decorator to handle Flask application context
+    def with_app_context(func):
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            with app.app_context():
+                return await func(*args, **kwargs)
+        return wrapper
+    
+    # Apply the decorator to command invoke method
+    original_invoke = bot.invoke
+    bot.invoke = with_app_context(original_invoke)
+    
     bot.run(token)

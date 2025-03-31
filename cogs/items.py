@@ -20,13 +20,70 @@ class Items(BaseCog):
         super().__init__(bot)
         self.bot = bot
         
+    def with_app_context(self, func):
+        """Decorator to run a function within Flask application context."""
+        from app import app
+        with app.app_context():
+            return func()
+        
     @commands.command(name="shop", help="Browse the item shop")
     async def shop_prefix(self, ctx, category=None):
         """Browse the item shop with traditional prefix command."""
         if category:
             await self.show_category_items(ctx, category)
         else:
-            await self.show_shop_categories(ctx)
+            # Get categories from database
+            from app import app
+            with app.app_context():
+                categories = ItemCategory.query.all()
+            
+            if not categories:
+                await ctx.send(embed=self.info_embed("Shop", "There are no categories in the shop yet."))
+                return
+            
+            # Create category selection menu
+            embed = self.create_embed("Item Shop Categories", "Select a category by typing its number:")
+            
+            category_list = ""
+            for i, category in enumerate(categories, 1):
+                # Count items in this category
+                with app.app_context():
+                    item_count = Item.query.filter_by(category_id=category.id).count()
+                category_list += f"`{i}.` **{category.name}** ({item_count} items)\n"
+                category_list += f"   {category.description}\n\n"
+            
+            embed.description = category_list
+            embed.set_footer(text="Type a number to view items, or 'cancel' to exit")
+            
+            # Send the selection message
+            message = await ctx.send(embed=embed)
+            
+            # Wait for user selection
+            def check(m):
+                return m.author.id == ctx.author.id and m.channel.id == ctx.channel.id
+                
+            try:
+                response = await self.bot.wait_for('message', check=check, timeout=30.0)
+                
+                # Process the selection
+                if response.content.lower() == 'cancel':
+                    await ctx.send(embed=self.info_embed("Shop", "Shop browsing cancelled."))
+                    return
+                
+                try:
+                    selection = int(response.content.strip())
+                    if 1 <= selection <= len(categories):
+                        selected_category = categories[selection-1]
+                        await self.show_category_items(ctx, selected_category.name)
+                    else:
+                        await ctx.send(embed=self.error_embed(f"Invalid selection. Please choose a number between 1 and {len(categories)}."))
+                except ValueError:
+                    await ctx.send(embed=self.error_embed("Invalid selection. Please enter a number."))
+            
+            except asyncio.TimeoutError:
+                # Handle timeout
+                await ctx.send(embed=self.info_embed("Shop", "Shop browsing timed out."))
+                return
     
     @app_commands.command(name="shop", description="Browse items in the shop")
     @app_commands.describe(category="Optional category to filter items by")
@@ -35,7 +92,68 @@ class Items(BaseCog):
         if category:
             await self.show_category_items_slash(interaction, category)
         else:
-            await self.show_shop_categories_slash(interaction)
+            # Get categories from database
+            from app import app
+            with app.app_context():
+                categories = ItemCategory.query.all()
+            
+            if not categories:
+                await interaction.response.send_message(
+                    embed=self.info_embed("Shop", "There are no categories in the shop yet."),
+                    ephemeral=True
+                )
+                return
+            
+            # Create category selection view
+            class CategorySelect(discord.ui.Select):
+                def __init__(self, cog):
+                    self.cog = cog
+                    options = []
+                    
+                    for category in categories:
+                        with app.app_context():
+                            item_count = Item.query.filter_by(category_id=category.id).count()
+                        
+                        options.append(discord.SelectOption(
+                            label=category.name,
+                            description=f"{item_count} items available",
+                            value=str(category.id)
+                        ))
+                    
+                    super().__init__(
+                        placeholder="Select a category...",
+                        min_values=1,
+                        max_values=1,
+                        options=options
+                    )
+                
+                async def callback(self, interaction: discord.Interaction):
+                    category_id = int(self.values[0])
+                    with app.app_context():
+                        selected_category = ItemCategory.query.get(category_id)
+                    
+                    if selected_category:
+                        await self.cog.show_category_items_slash(interaction, selected_category.name)
+            
+            class CategoryView(discord.ui.View):
+                def __init__(self, cog, timeout=60):
+                    super().__init__(timeout=timeout)
+                    self.add_item(CategorySelect(cog))
+            
+            # Create embed with instructions
+            embed = self.create_embed("Item Shop", "Select a category to browse items:")
+            
+            # Add a brief description of each category
+            category_descriptions = ""
+            for category in categories:
+                with app.app_context():
+                    item_count = Item.query.filter_by(category_id=category.id).count()
+                category_descriptions += f"**{category.name}** ({item_count} items) - {category.description}\n\n"
+            
+            embed.description = category_descriptions
+            
+            # Send the message with the select menu
+            await interaction.response.send_message(embed=embed, view=CategoryView(self))
     
     async def show_shop_categories(self, ctx):
         """Show all item categories in the shop."""
@@ -89,16 +207,19 @@ class Items(BaseCog):
     async def show_category_items(self, ctx, category_name):
         """Show items in a specific category."""
         # Find the category
-        category = ItemCategory.query.filter(
-            ItemCategory.name.ilike(f"%{category_name}%")
-        ).first()
+        from app import app
+        with app.app_context():
+            category = ItemCategory.query.filter(
+                ItemCategory.name.ilike(f"%{category_name}%")
+            ).first()
         
         if not category:
             await ctx.send(embed=self.error_embed(f"Category '{category_name}' not found."))
             return
         
         # Get items in this category
-        items = Item.query.filter_by(category_id=category.id).all()
+        with app.app_context():
+            items = Item.query.filter_by(category_id=category.id).all()
         
         if not items:
             await ctx.send(embed=self.info_embed(
@@ -144,9 +265,11 @@ class Items(BaseCog):
     async def show_category_items_slash(self, interaction: discord.Interaction, category_name):
         """Show items in a specific category (slash command version)."""
         # Find the category
-        category = ItemCategory.query.filter(
-            ItemCategory.name.ilike(f"%{category_name}%")
-        ).first()
+        from app import app
+        with app.app_context():
+            category = ItemCategory.query.filter(
+                ItemCategory.name.ilike(f"%{category_name}%")
+            ).first()
         
         if not category:
             await interaction.response.send_message(
@@ -156,7 +279,8 @@ class Items(BaseCog):
             return
         
         # Get items in this category
-        items = Item.query.filter_by(category_id=category.id).all()
+        with app.app_context():
+            items = Item.query.filter_by(category_id=category.id).all()
         
         if not items:
             await interaction.response.send_message(
@@ -216,7 +340,11 @@ class Items(BaseCog):
     async def purchase_item(self, ctx, item_id: int):
         """Handle the purchase of an item."""
         # Get the item from database
-        item = Item.query.get(item_id)
+        from app import app
+        from datetime import datetime
+        
+        with app.app_context():
+            item = Item.query.get(item_id)
         
         if not item:
             await ctx.send(embed=self.error_embed(f"Item with ID {item_id} not found."))
@@ -232,8 +360,9 @@ class Items(BaseCog):
         user_id = ctx.author.id
         
         # Find database records
-        db_guild = Guild.query.filter_by(discord_id=str(guild_id)).first()
-        db_user = User.query.filter_by(discord_id=str(user_id)).first()
+        with app.app_context():
+            db_guild = Guild.query.filter_by(discord_id=str(guild_id)).first()
+            db_user = User.query.filter_by(discord_id=str(user_id)).first()
         
         if not db_guild or not db_user:
             await ctx.send(embed=self.error_embed("Database error. Please try again later."))
@@ -241,7 +370,8 @@ class Items(BaseCog):
         
         # Find guild member record to access wallet
         from models import GuildMember
-        guild_member = GuildMember.query.filter_by(user_id=db_user.id, guild_id=db_guild.id).first()
+        with app.app_context():
+            guild_member = GuildMember.query.filter_by(user_id=db_user.id, guild_id=db_guild.id).first()
         
         if not guild_member:
             await ctx.send(embed=self.error_embed("Could not find your economy profile."))
@@ -257,44 +387,49 @@ class Items(BaseCog):
         
         # Create transaction and add item to inventory
         try:
-            # Deduct money from wallet
-            guild_member.wallet -= item.price
-            
-            # Add transaction record
-            from models import Transaction
-            transaction = Transaction(
-                user_id=db_user.id,
-                guild_id=db_guild.id,
-                transaction_type="purchase",
-                amount=-item.price,
-                description=f"Purchased {item.name}"
-            )
-            db.session.add(transaction)
-            
-            # Check if user already has this item in inventory
-            inventory_item = InventoryItem.query.filter_by(
-                user_id=db_user.id,
-                item_id=item.id,
-                guild_id=db_guild.id
-            ).first()
-            
-            if inventory_item and not item.is_consumable:
-                # Update quantity for non-consumable items
-                inventory_item.quantity += 1
-                inventory_item.acquired_at = datetime.utcnow()  # Update acquisition time
-            else:
-                # Create new inventory entry
-                inventory_item = InventoryItem(
+            with app.app_context():
+                # Deduct money from wallet
+                guild_member.wallet -= item.price
+                
+                # Add transaction record
+                from models import Transaction
+                from app import db
+                transaction = Transaction(
+                    user_id=db_user.id,
+                    guild_id=db_guild.id,
+                    transaction_type="purchase",
+                    amount=-item.price,
+                    description=f"Purchased {item.name}"
+                )
+                db.session.add(transaction)
+                
+                # Check if user already has this item in inventory
+                inventory_item = InventoryItem.query.filter_by(
                     user_id=db_user.id,
                     item_id=item.id,
-                    guild_id=db_guild.id,
-                    quantity=1
-                )
-                db.session.add(inventory_item)
-            
-            # Update item quantity if limited
-            if item.is_limited and item.quantity_available is not None:
-                item.quantity_available -= 1
+                    guild_id=db_guild.id
+                ).first()
+                
+                if inventory_item and not item.is_consumable:
+                    # Update quantity for non-consumable items
+                    inventory_item.quantity += 1
+                    inventory_item.acquired_at = datetime.utcnow()  # Update acquisition time
+                else:
+                    # Create new inventory entry
+                    inventory_item = InventoryItem(
+                        user_id=db_user.id,
+                        item_id=item.id,
+                        guild_id=db_guild.id,
+                        quantity=1
+                    )
+                    db.session.add(inventory_item)
+                
+                # Update item quantity if limited
+                if item.is_limited and item.quantity_available is not None:
+                    item.quantity_available -= 1
+                
+                # Commit changes
+                db.session.commit()
             
             # Special handling for role rewards
             if item.is_role_reward and item.role_id:
@@ -305,23 +440,25 @@ class Items(BaseCog):
                 except Exception as e:
                     logging.error(f"Error adding role for purchased item: {e}")
             
-            # Commit changes
-            db.session.commit()
-            
             # Notify user of successful purchase
             await ctx.send(embed=self.success_embed(
                 f"You purchased {item.name} for {item.price} coins!"
             ))
             
         except Exception as e:
-            db.session.rollback()
+            with app.app_context():
+                db.session.rollback()
             logging.error(f"Error during item purchase: {e}")
             await ctx.send(embed=self.error_embed("An error occurred during purchase. Please try again."))
     
     async def purchase_item_slash(self, interaction: discord.Interaction, item_id: int):
         """Handle the purchase of an item (slash command version)."""
         # Get the item from database
-        item = Item.query.get(item_id)
+        from app import app
+        from datetime import datetime
+        
+        with app.app_context():
+            item = Item.query.get(item_id)
         
         if not item:
             await interaction.response.send_message(
@@ -343,8 +480,9 @@ class Items(BaseCog):
         user_id = interaction.user.id
         
         # Find database records
-        db_guild = Guild.query.filter_by(discord_id=str(guild_id)).first()
-        db_user = User.query.filter_by(discord_id=str(user_id)).first()
+        with app.app_context():
+            db_guild = Guild.query.filter_by(discord_id=str(guild_id)).first()
+            db_user = User.query.filter_by(discord_id=str(user_id)).first()
         
         if not db_guild or not db_user:
             await interaction.response.send_message(
@@ -355,7 +493,8 @@ class Items(BaseCog):
         
         # Find guild member record to access wallet
         from models import GuildMember
-        guild_member = GuildMember.query.filter_by(user_id=db_user.id, guild_id=db_guild.id).first()
+        with app.app_context():
+            guild_member = GuildMember.query.filter_by(user_id=db_user.id, guild_id=db_guild.id).first()
         
         if not guild_member:
             await interaction.response.send_message(
@@ -377,44 +516,49 @@ class Items(BaseCog):
         
         # Create transaction and add item to inventory
         try:
-            # Deduct money from wallet
-            guild_member.wallet -= item.price
-            
-            # Add transaction record
-            from models import Transaction
-            transaction = Transaction(
-                user_id=db_user.id,
-                guild_id=db_guild.id,
-                transaction_type="purchase",
-                amount=-item.price,
-                description=f"Purchased {item.name}"
-            )
-            db.session.add(transaction)
-            
-            # Check if user already has this item in inventory
-            inventory_item = InventoryItem.query.filter_by(
-                user_id=db_user.id,
-                item_id=item.id,
-                guild_id=db_guild.id
-            ).first()
-            
-            if inventory_item and not item.is_consumable:
-                # Update quantity for non-consumable items
-                inventory_item.quantity += 1
-                inventory_item.acquired_at = datetime.utcnow()  # Update acquisition time
-            else:
-                # Create new inventory entry
-                inventory_item = InventoryItem(
+            with app.app_context():
+                # Deduct money from wallet
+                guild_member.wallet -= item.price
+                
+                # Add transaction record
+                from models import Transaction
+                from app import db
+                transaction = Transaction(
+                    user_id=db_user.id,
+                    guild_id=db_guild.id,
+                    transaction_type="purchase",
+                    amount=-item.price,
+                    description=f"Purchased {item.name}"
+                )
+                db.session.add(transaction)
+                
+                # Check if user already has this item in inventory
+                inventory_item = InventoryItem.query.filter_by(
                     user_id=db_user.id,
                     item_id=item.id,
-                    guild_id=db_guild.id,
-                    quantity=1
-                )
-                db.session.add(inventory_item)
-            
-            # Update item quantity if limited
-            if item.is_limited and item.quantity_available is not None:
-                item.quantity_available -= 1
+                    guild_id=db_guild.id
+                ).first()
+                
+                if inventory_item and not item.is_consumable:
+                    # Update quantity for non-consumable items
+                    inventory_item.quantity += 1
+                    inventory_item.acquired_at = datetime.utcnow()  # Update acquisition time
+                else:
+                    # Create new inventory entry
+                    inventory_item = InventoryItem(
+                        user_id=db_user.id,
+                        item_id=item.id,
+                        guild_id=db_guild.id,
+                        quantity=1
+                    )
+                    db.session.add(inventory_item)
+                
+                # Update item quantity if limited
+                if item.is_limited and item.quantity_available is not None:
+                    item.quantity_available -= 1
+                
+                # Commit changes
+                db.session.commit()
             
             # Special handling for role rewards
             if item.is_role_reward and item.role_id:
@@ -425,16 +569,14 @@ class Items(BaseCog):
                 except Exception as e:
                     logging.error(f"Error adding role for purchased item: {e}")
             
-            # Commit changes
-            db.session.commit()
-            
             # Notify user of successful purchase
             await interaction.response.send_message(
                 embed=self.success_embed(f"You purchased {item.name} for {item.price} coins!")
             )
             
         except Exception as e:
-            db.session.rollback()
+            with app.app_context():
+                db.session.rollback()
             logging.error(f"Error during item purchase: {e}")
             await interaction.response.send_message(
                 embed=self.error_embed("An error occurred during purchase. Please try again."),
@@ -444,7 +586,9 @@ class Items(BaseCog):
     @commands.command(name="inventory", help="View your inventory")
     async def inventory_prefix(self, ctx):
         """View your inventory with traditional prefix command."""
-        await self.show_inventory(ctx)
+        from app import app
+        with app.app_context():
+            await self.show_inventory(ctx)
     
     @app_commands.command(name="inventory", description="View your inventory")
     async def inventory_slash(self, interaction: discord.Interaction):
@@ -456,61 +600,67 @@ class Items(BaseCog):
         guild_id = ctx.guild.id
         user_id = ctx.author.id
         
-        # Find database records
-        db_guild = Guild.query.filter_by(discord_id=str(guild_id)).first()
-        db_user = User.query.filter_by(discord_id=str(user_id)).first()
+        from app import app
         
-        if not db_guild or not db_user:
-            await ctx.send(embed=self.error_embed("Database error. Please try again later."))
-            return
-        
-        # Get inventory items
-        inventory_items = InventoryItem.query.filter_by(
-            user_id=db_user.id,
-            guild_id=db_guild.id
-        ).all()
-        
-        if not inventory_items:
-            await ctx.send(embed=self.info_embed(
-                "Inventory", 
-                "Your inventory is empty. Use `!shop` to browse items you can buy."
-            ))
-            return
-        
-        embed = self.create_embed(
-            f"{ctx.author.display_name}'s Inventory",
-            "Items you currently own."
-        )
-        
-        # Group items by category for better organization
-        categories = {}
-        
-        for inv_item in inventory_items:
-            item = inv_item.item_type
+        with app.app_context():
+            # Find database records
+            db_guild = Guild.query.filter_by(discord_id=str(guild_id)).first()
+            db_user = User.query.filter_by(discord_id=str(user_id)).first()
             
-            if item.category.name not in categories:
-                categories[item.category.name] = []
+            if not db_guild or not db_user:
+                await ctx.send(embed=self.error_embed("Database error. Please try again later."))
+                return
             
-            categories[item.category.name].append((inv_item, item))
-        
-        # Add fields for each category
-        for category_name, items in categories.items():
-            items_text = ""
+            # Get inventory items
+            inventory_items = InventoryItem.query.filter_by(
+                user_id=db_user.id,
+                guild_id=db_guild.id
+            ).all()
             
-            for inv_item, item in items:
-                # Add item details
-                quantity_text = f" (x{inv_item.quantity})" if inv_item.quantity > 1 else ""
-                use_text = " - Use with `!use " + str(item.id) + "`" if item.is_consumable else ""
-                items_text += f"• **{item.name}**{quantity_text}{use_text}\n"
-                items_text += f"  {item.description}\n"
+            if not inventory_items:
+                await ctx.send(embed=self.info_embed(
+                    "Inventory", 
+                    "Your inventory is empty. Use `!shop` to browse items you can buy."
+                ))
+                return
             
-            embed.add_field(
-                name=category_name,
-                value=items_text,
-                inline=False
+            # Construct the inventory details
+            embed = self.create_embed(
+                f"{ctx.author.display_name}'s Inventory",
+                "Items you currently own."
             )
-        
-        embed.set_footer(text="Use !use <item_id> to use a consumable item.")
+            
+            # Group items by category for better organization
+            categories = {}
+            
+            for inv_item in inventory_items:
+                item = inv_item.item_type
+                
+                if item.category.name not in categories:
+                    categories[item.category.name] = []
+                
+                categories[item.category.name].append((inv_item, item))
+            
+            # Add fields for each category
+            for category_name, items in categories.items():
+                items_text = ""
+                
+                for inv_item, item in items:
+                    # Add item details
+                    quantity_text = f" (x{inv_item.quantity})" if inv_item.quantity > 1 else ""
+                    use_text = " - Use with `!use " + str(item.id) + "`" if item.is_consumable else ""
+                    items_text += f"• **{item.name}**{quantity_text}{use_text}\n"
+                    items_text += f"  {item.description}\n"
+                
+                embed.add_field(
+                    name=category_name,
+                    value=items_text,
+                    inline=False
+                )
+            
+            embed.set_footer(text="Use !use <item_id> to use a consumable item.")
+            
+        # Send the embed outside of app context
         await ctx.send(embed=embed)
     
     async def show_inventory_slash(self, interaction: discord.Interaction):
@@ -518,66 +668,72 @@ class Items(BaseCog):
         guild_id = interaction.guild_id
         user_id = interaction.user.id
         
-        # Find database records
-        db_guild = Guild.query.filter_by(discord_id=str(guild_id)).first()
-        db_user = User.query.filter_by(discord_id=str(user_id)).first()
+        from app import app
         
-        if not db_guild or not db_user:
-            await interaction.response.send_message(
-                embed=self.error_embed("Database error. Please try again later."),
-                ephemeral=True
-            )
-            return
-        
-        # Get inventory items
-        inventory_items = InventoryItem.query.filter_by(
-            user_id=db_user.id,
-            guild_id=db_guild.id
-        ).all()
-        
-        if not inventory_items:
-            await interaction.response.send_message(
-                embed=self.info_embed(
-                    "Inventory", 
-                    "Your inventory is empty. Use `/shop` to browse items you can buy."
+        with app.app_context():
+            # Find database records
+            db_guild = Guild.query.filter_by(discord_id=str(guild_id)).first()
+            db_user = User.query.filter_by(discord_id=str(user_id)).first()
+            
+            if not db_guild or not db_user:
+                await interaction.response.send_message(
+                    embed=self.error_embed("Database error. Please try again later."),
+                    ephemeral=True
                 )
+                return
+            
+            # Get inventory items
+            inventory_items = InventoryItem.query.filter_by(
+                user_id=db_user.id,
+                guild_id=db_guild.id
+            ).all()
+            
+            if not inventory_items:
+                await interaction.response.send_message(
+                    embed=self.info_embed(
+                        "Inventory", 
+                        "Your inventory is empty. Use `/shop` to browse items you can buy."
+                    )
+                )
+                return
+            
+            # Construct the embed
+            embed = self.create_embed(
+                f"{interaction.user.display_name}'s Inventory",
+                "Items you currently own."
             )
-            return
-        
-        embed = self.create_embed(
-            f"{interaction.user.display_name}'s Inventory",
-            "Items you currently own."
-        )
-        
-        # Group items by category for better organization
-        categories = {}
-        
-        for inv_item in inventory_items:
-            item = inv_item.item_type
             
-            if item.category.name not in categories:
-                categories[item.category.name] = []
+            # Group items by category for better organization
+            categories = {}
             
-            categories[item.category.name].append((inv_item, item))
+            for inv_item in inventory_items:
+                item = inv_item.item_type
+                
+                if item.category.name not in categories:
+                    categories[item.category.name] = []
+                
+                categories[item.category.name].append((inv_item, item))
+            
+            # Add fields for each category
+            for category_name, items in categories.items():
+                items_text = ""
+                
+                for inv_item, item in items:
+                    # Add item details
+                    quantity_text = f" (x{inv_item.quantity})" if inv_item.quantity > 1 else ""
+                    use_text = " - Use with `/use " + str(item.id) + "`" if item.is_consumable else ""
+                    items_text += f"• **{item.name}**{quantity_text}{use_text}\n"
+                    items_text += f"  {item.description}\n"
+                
+                embed.add_field(
+                    name=category_name,
+                    value=items_text,
+                    inline=False
+                )
+            
+            embed.set_footer(text="Use /use command to use a consumable item.")
         
-        # Add fields for each category
-        for category_name, items in categories.items():
-            items_text = ""
-            
-            for inv_item, item in items:
-                # Add item details
-                quantity_text = f" (x{inv_item.quantity})" if inv_item.quantity > 1 else ""
-                use_text = " - Use with `/use " + str(item.id) + "`" if item.is_consumable else ""
-                items_text += f"• **{item.name}**{quantity_text}{use_text}\n"
-                items_text += f"  {item.description}\n"
-            
-            embed.add_field(
-                name=category_name,
-                value=items_text,
-                inline=False
-            )
-        
-        embed.set_footer(text="Use /use command to use a consumable item.")
+        # Send the embed outside of app context
         await interaction.response.send_message(embed=embed)
     
     @commands.command(name="use", help="Use an item from your inventory")
@@ -596,60 +752,62 @@ class Items(BaseCog):
         guild_id = ctx.guild.id
         user_id = ctx.author.id
         
-        # Find database records
-        db_guild = Guild.query.filter_by(discord_id=str(guild_id)).first()
-        db_user = User.query.filter_by(discord_id=str(user_id)).first()
+        from app import app
         
-        if not db_guild or not db_user:
-            await ctx.send(embed=self.error_embed("Database error. Please try again later."))
-            return
-        
-        # Get the item from database
-        item = Item.query.get(item_id)
-        
-        if not item:
-            await ctx.send(embed=self.error_embed(f"Item with ID {item_id} not found."))
-            return
-        
-        # Check if user has the item
-        inventory_item = InventoryItem.query.filter_by(
-            user_id=db_user.id,
-            item_id=item.id,
-            guild_id=db_guild.id
-        ).first()
-        
-        if not inventory_item or inventory_item.quantity <= 0:
-            await ctx.send(embed=self.error_embed(f"You don't have {item.name} in your inventory."))
-            return
-        
-        # Check if item is consumable
-        if not item.is_consumable:
-            await ctx.send(embed=self.error_embed(f"{item.name} cannot be used. It's not a consumable item."))
-            return
-        
-        # Process item usage based on its type
-        try:
+        with app.app_context():
+            # Find database records
+            db_guild = Guild.query.filter_by(discord_id=str(guild_id)).first()
+            db_user = User.query.filter_by(discord_id=str(user_id)).first()
+            
+            if not db_guild or not db_user:
+                await ctx.send(embed=self.error_embed("Database error. Please try again later."))
+                return
+            
+            # Get the item from database
+            item = Item.query.get(item_id)
+            
+            if not item:
+                await ctx.send(embed=self.error_embed(f"Item with ID {item_id} not found."))
+                return
+            
+            # Check if user has the item
+            inventory_item = InventoryItem.query.filter_by(
+                user_id=db_user.id,
+                item_id=item.id,
+                guild_id=db_guild.id
+            ).first()
+            
+            if not inventory_item or inventory_item.quantity <= 0:
+                await ctx.send(embed=self.error_embed(f"You don't have {item.name} in your inventory."))
+                return
+            
+            # Check if item is consumable
+            if not item.is_consumable:
+                await ctx.send(embed=self.error_embed(f"{item.name} cannot be used. It's not a consumable item."))
+                return
+
             # Get item properties
             properties = item.get_properties()
             effect_message = "You used " + item.name
             
-            # Process different item types based on properties
-            from models import GuildMember, Transaction
-            guild_member = GuildMember.query.filter_by(user_id=db_user.id, guild_id=db_guild.id).first()
-            
-            if not guild_member:
-                await ctx.send(embed=self.error_embed("Could not find your economy profile."))
-                return
+            with app.app_context():
+                # Process different item types based on properties
+                from models import GuildMember, Transaction
+                guild_member = GuildMember.query.filter_by(user_id=db_user.id, guild_id=db_guild.id).first()
                 
-            # Handle Company Shares
-            if item.name == 'Company Shares':
-                from models import Company
-                # Get list of companies in guild
-                companies = Company.query.filter_by(guild_id=db_guild.id).all()
-                
-                if not companies:
-                    await ctx.send(embed=self.error_embed("There are no companies in this guild to invest in."))
+                if not guild_member:
+                    await ctx.send(embed=self.error_embed("Could not find your economy profile."))
                     return
+                    
+                # Handle Company Shares
+                if item.name == 'Company Shares':
+                    from models import Company
+                    # Get list of companies in guild
+                    companies = Company.query.filter_by(guild_id=db_guild.id).all()
+                    
+                    if not companies:
+                        await ctx.send(embed=self.error_embed("There are no companies in this guild to invest in."))
+                        return
                 
                 # Create a selection message with companies
                 company_list = "\n".join([f"{i+1}. {company.name}" for i, company in enumerate(companies)])
@@ -889,7 +1047,8 @@ class Items(BaseCog):
             await ctx.send(embed=self.success_embed(effect_message))
             
         except Exception as e:
-            db.session.rollback()
+            with app.app_context():
+                db.session.rollback()
             logging.error(f"Error during item usage: {e}")
             await ctx.send(embed=self.error_embed("An error occurred while using the item. Please try again."))
     
@@ -898,48 +1057,51 @@ class Items(BaseCog):
         guild_id = interaction.guild_id
         user_id = interaction.user.id
         
-        # Find database records
-        db_guild = Guild.query.filter_by(discord_id=str(guild_id)).first()
-        db_user = User.query.filter_by(discord_id=str(user_id)).first()
+        from app import app
         
-        if not db_guild or not db_user:
-            await interaction.response.send_message(
-                embed=self.error_embed("Database error. Please try again later."),
-                ephemeral=True
-            )
-            return
-        
-        # Get the item from database
-        item = Item.query.get(item_id)
-        
-        if not item:
-            await interaction.response.send_message(
-                embed=self.error_embed(f"Item with ID {item_id} not found."),
-                ephemeral=True
-            )
-            return
-        
-        # Check if user has the item
-        inventory_item = InventoryItem.query.filter_by(
-            user_id=db_user.id,
-            item_id=item.id,
-            guild_id=db_guild.id
-        ).first()
-        
-        if not inventory_item or inventory_item.quantity <= 0:
-            await interaction.response.send_message(
-                embed=self.error_embed(f"You don't have {item.name} in your inventory."),
-                ephemeral=True
-            )
-            return
-        
-        # Check if item is consumable
-        if not item.is_consumable:
-            await interaction.response.send_message(
-                embed=self.error_embed(f"{item.name} cannot be used. It's not a consumable item."),
-                ephemeral=True
-            )
-            return
+        with app.app_context():
+            # Find database records
+            db_guild = Guild.query.filter_by(discord_id=str(guild_id)).first()
+            db_user = User.query.filter_by(discord_id=str(user_id)).first()
+            
+            if not db_guild or not db_user:
+                await interaction.response.send_message(
+                    embed=self.error_embed("Database error. Please try again later."),
+                    ephemeral=True
+                )
+                return
+            
+            # Get the item from database
+            item = Item.query.get(item_id)
+            
+            if not item:
+                await interaction.response.send_message(
+                    embed=self.error_embed(f"Item with ID {item_id} not found."),
+                    ephemeral=True
+                )
+                return
+            
+            # Check if user has the item
+            inventory_item = InventoryItem.query.filter_by(
+                user_id=db_user.id,
+                item_id=item.id,
+                guild_id=db_guild.id
+            ).first()
+            
+            if not inventory_item or inventory_item.quantity <= 0:
+                await interaction.response.send_message(
+                    embed=self.error_embed(f"You don't have {item.name} in your inventory."),
+                    ephemeral=True
+                )
+                return
+            
+            # Check if item is consumable
+            if not item.is_consumable:
+                await interaction.response.send_message(
+                    embed=self.error_embed(f"{item.name} cannot be used. It's not a consumable item."),
+                    ephemeral=True
+                )
+                return
         
         # Process item usage based on its type
         try:
