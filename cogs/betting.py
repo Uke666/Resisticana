@@ -16,9 +16,71 @@ class Betting(BaseCog):
     def __init__(self, bot):
         super().__init__(bot)
         self.db = Database()
-        self.active_bets = {}
-        self.bet_results = {}
+        self.bets_file = "data/bets.json"
+        self._load_bets()
         self.openai_client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        
+    def _load_bets(self):
+        """Load bets from the JSON file."""
+        try:
+            if os.path.exists(self.bets_file):
+                with open(self.bets_file, 'r') as f:
+                    data = json.load(f)
+                    self.active_bets = data.get('active_bets', {})
+                    self.bet_results = data.get('resolved_bets', {})
+                    
+                # Convert string keys to integers
+                self.active_bets = {int(k): v for k, v in self.active_bets.items()}
+                self.bet_results = {int(k): v for k, v in self.bet_results.items()}
+                
+                # Convert datetime strings back to datetime objects
+                for bet_id, bet in self.active_bets.items():
+                    bet['created_at'] = datetime.fromisoformat(bet['created_at']) if isinstance(bet['created_at'], str) else bet['created_at']
+                    bet['end_time'] = datetime.fromisoformat(bet['end_time']) if isinstance(bet['end_time'], str) else bet['end_time']
+                    for user_id, user_bet in bet['participants'].items():
+                        user_bet['placed_at'] = datetime.fromisoformat(user_bet['placed_at']) if isinstance(user_bet['placed_at'], str) else user_bet['placed_at']
+            else:
+                self.active_bets = {}
+                self.bet_results = {}
+                self._save_bets()
+        except Exception as e:
+            logging.error(f"Error loading bets data: {e}")
+            self.active_bets = {}
+            self.bet_results = {}
+            
+    def _save_bets(self):
+        """Save bets to the JSON file."""
+        try:
+            # Create a copy to avoid modifying the original data
+            active_bets_copy = {}
+            for bet_id, bet in self.active_bets.items():
+                bet_copy = bet.copy()
+                # Convert datetime objects to ISO format for JSON serialization
+                bet_copy['created_at'] = bet_copy['created_at'].isoformat() if isinstance(bet_copy['created_at'], datetime) else bet_copy['created_at']
+                bet_copy['end_time'] = bet_copy['end_time'].isoformat() if isinstance(bet_copy['end_time'], datetime) else bet_copy['end_time']
+                
+                # Deep copy participants
+                participants_copy = {}
+                for user_id, user_bet in bet_copy['participants'].items():
+                    user_bet_copy = user_bet.copy()
+                    user_bet_copy['placed_at'] = user_bet_copy['placed_at'].isoformat() if isinstance(user_bet_copy['placed_at'], datetime) else user_bet_copy['placed_at']
+                    participants_copy[user_id] = user_bet_copy
+                    
+                bet_copy['participants'] = participants_copy
+                active_bets_copy[str(bet_id)] = bet_copy
+                
+            # Also serialize the bet results
+            resolved_bets_copy = {}
+            for bet_id, bet in self.bet_results.items():
+                resolved_bets_copy[str(bet_id)] = bet
+                
+            with open(self.bets_file, 'w') as f:
+                json.dump({
+                    'active_bets': active_bets_copy,
+                    'resolved_bets': resolved_bets_copy
+                }, f, indent=2)
+        except Exception as e:
+            logging.error(f"Error saving bets data: {e}")
 
     @app_commands.command(name="createbet", description="Create a new betting event")
     @app_commands.describe(event_description="Description of the betting event")
@@ -32,7 +94,8 @@ class Betting(BaseCog):
             await interaction.response.send_message("Could not analyze the event. Please be more specific!", ephemeral=True)
             return
 
-        bet_id = len(self.active_bets)
+        # Generate a unique bet ID by finding the highest ID and adding 1
+        bet_id = max(list(self.active_bets.keys()) + list(self.bet_results.keys()) + [-1]) + 1
         self.active_bets[bet_id] = {
             'creator_id': creator_id,
             'description': event_description,
@@ -54,6 +117,8 @@ class Betting(BaseCog):
         embed.add_field(name="Created by", value=interaction.user.mention, inline=True)
         embed.add_field(name="Estimated End", value=event_info['estimated_end_time'].strftime("%Y-%m-%d %H:%M UTC"), inline=False)
 
+        # Save the bet
+        self._save_bets()
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="placebet", description="Place a bet on an event")
@@ -88,7 +153,9 @@ class Betting(BaseCog):
             'amount': amount,
             'placed_at': datetime.now()
         }
-
+        
+        # Save the changes
+        self._save_bets()
         await interaction.response.send_message(f"Bet placed! You bet ${amount} on {choice}")
 
     @app_commands.command(name="activebets", description="View all active betting events")
@@ -114,6 +181,44 @@ class Betting(BaseCog):
                 inline=False
             )
 
+        await interaction.response.send_message(embed=embed)
+        
+    @app_commands.command(name="pastbets", description="View past resolved betting events")
+    async def view_past_bets(self, interaction: discord.Interaction, limit: int = 5):
+        """View past betting events that have been resolved."""
+        if not self.bet_results:
+            await interaction.response.send_message("No past bets found!", ephemeral=True)
+            return
+            
+        embed = discord.Embed(
+            title="Past Betting Events",
+            description="Recently resolved bets",
+            color=discord.Color.gold()
+        )
+        
+        # Sort by resolved_at time, newest first
+        sorted_bets = sorted(
+            self.bet_results.items(), 
+            key=lambda x: x[1].get('resolved_at', datetime.now()), 
+            reverse=True
+        )
+        
+        # Take only the requested number
+        for bid, bet in sorted_bets[:limit]:
+            resolved_time = bet.get('resolved_at', 'Unknown')
+            if isinstance(resolved_time, datetime):
+                resolved_time = resolved_time.strftime('%Y-%m-%d %H:%M UTC')
+                
+            embed.add_field(
+                name=f"Bet #{bid}",
+                value=f"**Description:** {bet['description']}\n"
+                      f"**Winner:** {bet['winner']}\n"
+                      f"**Total Pot:** ${bet['total_pot']}\n"
+                      f"**Participants:** {bet['num_participants']}\n"
+                      f"**Resolved:** {resolved_time}",
+                inline=False
+            )
+            
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="resolvebet", description="Resolve a bet and distribute winnings")
@@ -148,6 +253,21 @@ class Betting(BaseCog):
         bet['status'] = 'closed'
         bet['result'] = winner
         bet['resolved_at'] = datetime.now()
+        
+        # Move the bet to the resolved bets dict
+        self.bet_results[bet_id] = {
+            'description': bet['description'],
+            'options': bet['options'],
+            'winner': winner,
+            'total_pot': total_pot,
+            'num_participants': len(bet['participants']),
+            'num_winners': len(winning_bets),
+            'created_at': bet['created_at'],
+            'resolved_at': datetime.now()
+        }
+        
+        # Save the changes
+        self._save_bets()
 
         embed = discord.Embed(
             title="Bet Resolved!",
@@ -208,6 +328,9 @@ class Betting(BaseCog):
         refund_amount = bet['participants'][user_id]['amount']
         self.db.add_money(user_id, refund_amount)
         del bet['participants'][user_id]
+        
+        # Save the changes
+        self._save_bets()
 
         await interaction.response.send_message(f"Your bet has been cancelled and ${refund_amount} has been refunded to your wallet.")
 
@@ -275,7 +398,7 @@ async def setup(bot):
     try:
         commands = await bot.tree.sync(guild=None)
         for cmd in commands:
-            if cmd.name in ["createbet", "placebet", "activebets", "resolvebet", "mybet", "cancelbet"]:
+            if cmd.name in ["createbet", "placebet", "activebets", "resolvebet", "mybet", "cancelbet", "pastbets"]:
                 logging.info(f"Registered command: {cmd.name}")
     except discord.HTTPException as e:
         if e.code == 429:
