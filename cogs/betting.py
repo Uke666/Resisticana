@@ -121,7 +121,13 @@ class Betting(BaseCog):
             }
 
     @commands.command(name="placebet")
-    async def place_bet(self, ctx, bet_id: int, amount: int, *, choice: str):
+    async def place_bet(self, ctx, bet_id: int, *, option_and_amount: str):
+        """Place a bet on an event. Usage: !placebet <bet_id> <option> <amount>"""
+        try:
+            # Split the last parameter into option and amount
+            *option_parts, amount = option_and_amount.rsplit(' ', 1)
+            choice = ' '.join(option_parts)
+            amount = int(amount)
         """Place a bet on an event."""
         if bet_id not in self.active_bets:
             await ctx.send("Bet not found!")
@@ -152,6 +158,13 @@ class Betting(BaseCog):
             'placed_at': datetime.now()
         }
 
+        except ValueError:
+            await ctx.send("Invalid format! Use: !placebet <bet_id> <option> <amount>")
+            return
+        except Exception as e:
+            await ctx.send(f"Error placing bet: {str(e)}")
+            return
+            
         await ctx.send(f"Bet placed! You bet ${amount} on {choice}")
 
     @commands.command(name="updatebet")
