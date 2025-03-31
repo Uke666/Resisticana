@@ -55,28 +55,21 @@ class Betting(BaseCog):
         await ctx.send(embed=embed)
 
     async def analyze_event(self, description):
-        """Analyze event description using AI to extract options and end time."""
+        """Analyze event description to extract options and end time."""
         try:
-            prompt = f"""Analyze this betting event: "{description}"
-            Extract:
-            1. Possible outcomes/options
-            2. Estimated end time
-            3. Event type (sports/politics/entertainment/local)
-
-            Return as JSON with fields: options (list), estimated_end_time (ISO date), event_type (string)"""
-
-            response = await self.openai_client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"}
-            )
-
-            result = json.loads(response.choices[0].message.content)
-            result['estimated_end_time'] = datetime.fromisoformat(result['estimated_end_time'])
-            return result
-
+            # Default to two options: Win/Lose
+            options = ["Win", "Lose"]
+            
+            # Set end time to 24 hours from now
+            end_time = datetime.now() + timedelta(hours=24)
+            
+            return {
+                'options': options,
+                'estimated_end_time': end_time,
+                'event_type': 'sports'
+            }
         except Exception as e:
-            logging.error(f"Error in AI analysis: {str(e)}")
+            logging.error(f"Error in analysis: {str(e)}")
             return None
 
     @commands.command(name="placebet")
