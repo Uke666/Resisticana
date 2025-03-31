@@ -197,6 +197,7 @@ async def help_command(ctx, category=None):
         embed.add_field(name=f"{prefix}pastbets [limit]", value="View past resolved betting events", inline=False)
         embed.add_field(name=f"{prefix}mybet <bet_id>", value="View your bet on an event", inline=False)
         embed.add_field(name=f"{prefix}cancelbet <bet_id>", value="Cancel your bet and get a refund", inline=False)
+        embed.add_field(name=f"{prefix}resolvebet <bet_id> <winning_option>", value="Admin only: Manually resolve a bet", inline=False)
 
     # General commands
     elif category.lower() == "general":
@@ -319,6 +320,7 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
         embed.add_field(name="/pastbets limit:<number>", value="View past resolved betting events", inline=False)
         embed.add_field(name="/mybet bet_id:<id>", value="View your bet on an event", inline=False)
         embed.add_field(name="/cancelbet bet_id:<id>", value="Cancel your bet and get a refund", inline=False)
+        embed.add_field(name="/resolvebet bet_id:<id> winner:<option>", value="Admin only: Manually resolve a bet", inline=False)
 
     # General commands
     elif category.lower() == "general":
