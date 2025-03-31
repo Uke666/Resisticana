@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Economic Events - Discord Economy Bot</title>
+    <!-- CSS Styles -->
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/animations.css">
+    <!-- JavaScript -->
+    <script src="/static/js/main.js" defer></script>
+    <script src="/static/js/economy-animations.js" defer></script>
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">
+                <img src="/static/img/coin.svg" alt="Economy Bot Logo" class="coin-icon">
+                <h1>Discord Economy Bot</h1>
+            </div>
+            <ul class="nav-links">
+                <li><a href="/" class="nav-link">Home</a></li>
+                <li><a href="/dashboard" class="nav-link">Dashboard</a></li>
+                <li><a href="/guilds" class="nav-link">Servers</a></li>
+                <li><a href="/inventory" class="nav-link">Inventory</a></li>
+                <li><a href="/shop" class="nav-link">Shop</a></li>
+                <li><a href="/investments" class="nav-link">Investments</a></li>
+                <li><a href="/events" class="nav-link active">Events</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="container">
+        <h2 class="page-title animate-fade-in">Economic Events</h2>
+        <p class="description animate-fade-in-up">Active economic events that are currently influencing the economy.</p>
+        
+        <!-- Market Sentiment Overview -->
+        <div class="market-sentiment {{ market_sentiment.lower() }} animate-fade-in-up">
+            <h3>Current Market Sentiment</h3>
+            <div class="sentiment-value">{{ market_sentiment }}</div>
+            <p class="sentiment-description">
+                {% if market_sentiment == 'Bullish' %}
+                    The market is experiencing strong positive growth. Economic activities are yielding higher returns.
+                {% elif market_sentiment == 'Bearish' %}
+                    The market is in a downturn. Economic activities are yielding lower returns than usual.
+                {% else %}
+                    The market is stable. Economic activities are yielding normal returns.
+                {% endif %}
+            </p>
+        </div>
+        
+        <!-- Admin Controls (Only visible to admins) -->
+        <div class="admin-controls animate-fade-in-up">
+            <button id="generate-event" class="btn btn-primary">Generate New Event</button>
+        </div>
+        
+        <!-- Active Events -->
+        <div class="section-title animate-fade-in-up">Active Events</div>
+        
+        <div class="active-events">
+            {% if active_events %}
+                {% for event in active_events %}
+                    <div class="event-card {{ event.impact }} animate-in" 
+                         style="animation-delay: {{ loop.index * 100 }}ms;">
+                        <div class="event-header">
+                            <h4>{{ event.title }}</h4>
+                            <div class="event-impact {{ event.impact }}">
+                                <span class="impact-dot"></span>
+                                {{ event.impact|capitalize }}
+                            </div>
+                        </div>
+                        
+                        <p class="event-description">{{ event.description }}</p>
+                        
+                        <div class="event-details">
+                            <div class="event-stat">
+                                <span class="label">Multiplier</span>
+                                <span class="value">{{ event.multiplier }}x</span>
+                            </div>
+                            
+                            <div class="event-stat">
+                                <span class="label">Time Remaining</span>
+                                <span class="value">{{ event.time_remaining }}</span>
+                            </div>
+                            
+                            <div class="event-stat">
+                                <span class="label">Started</span>
+                                <span class="value">{{ from_now(event.start_time) }}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="event-progress">
+                            <div class="progress-bar progress-bar-animated">
+                                <div class="progress-fill {{ event.impact }}" 
+                                     style="width: {{ event.progress_percent }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state animate-fade-in-up">
+                    <img src="/static/img/coin.svg" alt="No Events" class="empty-icon">
+                    <p>There are currently no active economic events.</p>
+                    <p>Check back later or generate a new event!</p>
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- What Are Economic Events? -->
+        <div class="info-card animate-fade-in-up">
+            <h3>What Are Economic Events?</h3>
+            <p>Economic events are temporary conditions that affect the economy in various ways:</p>
+            <ul>
+                <li><strong>Positive Events:</strong> Increase rewards, investment returns, and other economic activities.</li>
+                <li><strong>Negative Events:</strong> Decrease rewards, investment returns, and make economic activities less profitable.</li>
+                <li><strong>Neutral Events:</strong> Mix of effects or minimal impact on the economy.</li>
+            </ul>
+            <p>Events have a limited duration and will automatically expire after their time is up.</p>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2025 Discord Economy Bot. All rights reserved.</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Apply animations to cards
+            const cards = document.querySelectorAll('.event-card');
+            cards.forEach((card, index) => {
+                card.style.animationDelay = `${index * 100}ms`;
+            });
+            
+            // Generate event button
+            const generateButton = document.getElementById('generate-event');
+            if (generateButton) {
+                generateButton.addEventListener('click', async () => {
+                    try {
+                        // Show loading state
+                        generateButton.textContent = 'Generating...';
+                        generateButton.disabled = true;
+                        
+                        // Call the generate event API
+                        const response = await fetch('/api/events/generate', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            // On success, show confetti and reload
+                            if (window.economyAnimations) {
+                                const eventType = result.event.impact || 'neutral';
+                                const confettiType = eventType === 'positive' ? 'success' : 
+                                                   eventType === 'negative' ? 'rare' : 'neutral';
+                                                   
+                                window.economyAnimations.playConfettiAnimation(confettiType);
+                                window.economyAnimations.createFloatingText(
+                                    window.innerWidth / 2,
+                                    window.innerHeight / 2,
+                                    `New Event: ${result.event.title}`,
+                                    eventType === 'positive' ? '#4CAF50' : 
+                                    eventType === 'negative' ? '#F44336' : '#2196F3'
+                                );
+                                
+                                // Reload after animation
+                                setTimeout(() => {
+                                    window.location.reload();
+                                }, 2000);
+                            } else {
+                                // Fallback if animations not available
+                                alert(`New event generated: ${result.event.title}`);
+                                window.location.reload();
+                            }
+                        } else {
+                            // Handle error
+                            alert(`Error: ${result.error || 'Could not generate event'}`);
+                            generateButton.textContent = 'Generate New Event';
+                            generateButton.disabled = false;
+                        }
+                    } catch (error) {
+                        console.error('Error generating event:', error);
+                        alert('An error occurred while generating the event.');
+                        generateButton.textContent = 'Generate New Event';
+                        generateButton.disabled = false;
+                    }
+                });
+            }
+        });
+    </script>
+
+    <style>
+        /* Additional styles specific to the events page */
+        .market-sentiment {
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            text-align: center;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+            animation: fadeIn 0.5s ease-out;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .market-sentiment:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+        }
+        
+        .market-sentiment h3 {
+            margin-top: 0;
+            font-size: 1.2rem;
+        }
+        
+        .sentiment-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .sentiment-description {
+            font-style: italic;
+            margin-top: 10px;
+        }
+        
+        .market-sentiment.bullish {
+            background: linear-gradient(to right, #E8F5E9, #DCEDC8);
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .market-sentiment.bearish {
+            background: linear-gradient(to right, #FFEBEE, #FFCDD2);
+            border-left: 4px solid #F44336;
+        }
+        
+        .market-sentiment.neutral {
+            background: linear-gradient(to right, #E3F2FD, #BBDEFB);
+            border-left: 4px solid #2196F3;
+        }
+        
+        .active-events {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .event-card {
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .event-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+        }
+        
+        .event-card.positive {
+            background: linear-gradient(to right, #E8F5E9, #DCEDC8);
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .event-card.negative {
+            background: linear-gradient(to right, #FFEBEE, #FFCDD2);
+            border-left: 4px solid #F44336;
+        }
+        
+        .event-card.neutral {
+            background: linear-gradient(to right, #E3F2FD, #BBDEFB);
+            border-left: 4px solid #2196F3;
+        }
+        
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .event-header h4 {
+            margin: 0;
+            font-size: 1.2rem;
+        }
+        
+        .event-impact {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .event-impact.positive {
+            background-color: rgba(76, 175, 80, 0.2);
+            color: #2E7D32;
+        }
+        
+        .event-impact.negative {
+            background-color: rgba(244, 67, 54, 0.2);
+            color: #C62828;
+        }
+        
+        .event-impact.neutral {
+            background-color: rgba(33, 150, 243, 0.2);
+            color: #1565C0;
+        }
+        
+        .event-description {
+            margin-bottom: 15px;
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+        
+        .event-details {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .event-stat {
+            flex: 1;
+            min-width: 150px;
+        }
+        
+        .event-stat .label {
+            display: block;
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .event-stat .value {
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        
+        .event-progress {
+            margin-top: 15px;
+        }
+        
+        .progress-bar {
+            height: 12px;
+            background-color: rgba(0, 0, 0, 0.1);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+        
+        .progress-fill.positive {
+            background-color: #4CAF50;
+        }
+        
+        .progress-fill.negative {
+            background-color: #F44336;
+        }
+        
+        .progress-fill.neutral {
+            background-color: #2196F3;
+        }
+        
+        .animate-in {
+            animation: fadeInUp 0.5s ease-out forwards;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</body>
+</html>

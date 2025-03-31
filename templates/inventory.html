@@ -15,8 +15,10 @@
                     <li><a href="{{ url_for('home') }}">Home</a></li>
                     <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
                     <li><a href="{{ url_for('guilds') }}">Guilds</a></li>
+                    <li><a href="{{ url_for('inventory') }}">Inventory</a></li>
                     <li><a href="{{ url_for('investments') }}">Investments</a></li>
                     <li><a href="{{ url_for('shop') }}">Shop</a></li>
+                    <li><a href="{{ url_for('events') }}">Events</a></li>
                 </ul>
             </nav>
         </header>
@@ -87,13 +89,44 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/economy-animations.js') }}"></script>
     <script>
+        // Add animation to each inventory item
+        document.querySelectorAll('.item-card').forEach((card, index) => {
+            card.style.opacity = 0;
+            card.style.transform = 'translateY(20px)';
+            
+            setTimeout(() => {
+                card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                card.style.opacity = 1;
+                card.style.transform = 'translateY(0)';
+            }, 100 + index * 50);
+            
+            // Add subtle animation on hover
+            card.addEventListener('mouseenter', () => {
+                const itemName = card.querySelector('h4') ? card.querySelector('h4').textContent : '';
+                const rect = card.getBoundingClientRect();
+                
+                if (window.economyAnimations) {
+                    // Small sparkle effect on hover
+                    window.economyAnimations.playCoinFallAnimation(
+                        rect.left + rect.width / 2, 
+                        rect.top + rect.height / 4, 
+                        2
+                    );
+                }
+            });
+        });
+    
         // Handle item use button clicks
         document.querySelectorAll('.btn-use').forEach(button => {
             button.addEventListener('click', async (e) => {
                 e.preventDefault();
                 const itemId = button.getAttribute('data-item-id');
-                if (confirm(`Are you sure you want to use this item?`)) {
+                const itemCard = button.closest('.item-card');
+                const itemName = itemCard ? itemCard.querySelector('h4').textContent : 'Item';
+                
+                if (confirm(`Are you sure you want to use ${itemName}?`)) {
                     try {
                         const response = await fetch(`/inventory/use/${itemId}`, {
                             method: 'POST',
@@ -104,9 +137,79 @@
                         
                         const result = await response.json();
                         if (result.success) {
-                            alert(result.message);
-                            // Reload the page to refresh inventory
-                            window.location.reload();
+                            // Trigger animations based on item type
+                            if (window.economyAnimations) {
+                                // Get item position for animation origin
+                                const rect = itemCard.getBoundingClientRect();
+                                const x = rect.left + rect.width / 2;
+                                const y = rect.top + rect.height / 2;
+                                
+                                // Get item type from tags
+                                const tags = itemCard.querySelectorAll('.tag');
+                                let isConsumable = false;
+                                let isRoleReward = false;
+                                
+                                tags.forEach(tag => {
+                                    if (tag.classList.contains('consumable')) isConsumable = true;
+                                    if (tag.classList.contains('role')) isRoleReward = true;
+                                });
+                                
+                                // If it's a loot box
+                                if (itemName.includes('Loot Box') || itemName.includes('Chest')) {
+                                    window.economyAnimations.playConfettiAnimation('rare');
+                                    window.economyAnimations.createFloatingText(x, y, 'Loot Box Opened!', '#FFC107');
+                                    // Special coin fall for loot boxes
+                                    window.economyAnimations.playCoinFallAnimation(x, y, 20);
+                                }
+                                // If it's a shield
+                                else if (itemName.includes('Shield')) {
+                                    // Create shield effect
+                                    const shieldEffect = document.createElement('div');
+                                    shieldEffect.className = 'shield-effect';
+                                    document.body.appendChild(shieldEffect);
+                                    
+                                    setTimeout(() => {
+                                        shieldEffect.classList.add('active');
+                                        window.economyAnimations.createFloatingText(x, y, 'Shield Activated!', '#7289DA');
+                                        
+                                        setTimeout(() => {
+                                            shieldEffect.remove();
+                                        }, 2000);
+                                    }, 100);
+                                }
+                                // If it grants a role
+                                else if (isRoleReward) {
+                                    window.economyAnimations.playConfettiAnimation('epic');
+                                    window.economyAnimations.createFloatingText(x, y, 'Role Activated!', '#9C27B0');
+                                }
+                                // Default item use animation
+                                else {
+                                    window.economyAnimations.playItemUseAnimation(itemName);
+                                }
+                                
+                                // Add message about the item effect
+                                setTimeout(() => {
+                                    window.economyAnimations.createFloatingText(
+                                        x, 
+                                        y + 50,
+                                        result.message,
+                                        '#43B581'
+                                    );
+                                }, 500);
+                                
+                                // Add animation to the item card being consumed
+                                itemCard.style.transition = 'transform 0.5s ease, opacity 0.5s ease';
+                                itemCard.style.transform = 'scale(0.8)';
+                                itemCard.style.opacity = '0.5';
+                                
+                                // Refresh after animations
+                                setTimeout(() => {
+                                    window.location.reload();
+                                }, 2000);
+                            } else {
+                                alert(result.message);
+                                window.location.reload();
+                            }
                         } else {
                             alert(`Error: ${result.message}`);
                         }
@@ -117,6 +220,48 @@
                 }
             });
         });
+        
+        // Add shield effect CSS if not already present
+        if (!document.querySelector('#shield-effect-style')) {
+            const style = document.createElement('style');
+            style.id = 'shield-effect-style';
+            style.textContent = `
+                .shield-effect {
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    width: 100px;
+                    height: 100px;
+                    background: radial-gradient(circle, rgba(114,137,218,0.7) 0%, rgba(114,137,218,0) 70%);
+                    border-radius: 50%;
+                    z-index: 9999;
+                    opacity: 0;
+                    pointer-events: none;
+                }
+                
+                .shield-effect.active {
+                    animation: shield-pulse 2s ease-out forwards;
+                }
+                
+                @keyframes shield-pulse {
+                    0% {
+                        opacity: 0;
+                        width: 100px;
+                        height: 100px;
+                    }
+                    20% {
+                        opacity: 0.8;
+                    }
+                    100% {
+                        opacity: 0;
+                        width: 300vh;
+                        height: 300vh;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+        }
     </script>
 </body>
 </html>

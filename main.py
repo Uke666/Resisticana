@@ -7,6 +7,10 @@ from flask import render_template, jsonify, session, redirect, url_for, request,
 from bot import run_bot
 import models
 from datetime import datetime
+from utils.economic_events import EconomicEventManager
+
+# Initialize economic event manager
+event_manager = EconomicEventManager()
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, 
@@ -394,6 +398,82 @@ def shop(category=None):
                          categories=categories,
                          items=items,
                          selected_category=selected_category)
+
+@app.route('/events')
+def events():
+    """Show economic events page."""
+    # Get active events
+    active_events = event_manager.get_active_events()
+    
+    # Add helper data for template
+    for event in active_events:
+        # Calculate time remaining
+        end_time = datetime.fromisoformat(event['end_time'])
+        time_diff = end_time - datetime.now()
+        
+        if time_diff.days > 0:
+            event['time_remaining'] = f"{time_diff.days}d {time_diff.seconds // 3600}h"
+        else:
+            event['time_remaining'] = f"{time_diff.seconds // 3600}h {(time_diff.seconds // 60) % 60}m"
+            
+        # Calculate progress percentage
+        start_time = datetime.fromisoformat(event['start_time'])
+        total_duration = (end_time - start_time).total_seconds()
+        elapsed = (datetime.now() - start_time).total_seconds()
+        event['progress_percent'] = min(100, max(0, (elapsed / total_duration) * 100))
+    
+    # Determine overall market sentiment based on active events
+    if active_events:
+        positive_count = len([e for e in active_events if e['impact'] == 'positive'])
+        negative_count = len([e for e in active_events if e['impact'] == 'negative'])
+        
+        if positive_count > negative_count:
+            market_sentiment = "Bullish"
+        elif negative_count > positive_count:
+            market_sentiment = "Bearish"
+        else:
+            market_sentiment = "Neutral"
+    else:
+        market_sentiment = "Neutral"
+    
+    # Helper for formatting times
+    def from_now(time_str):
+        dt = datetime.fromisoformat(time_str)
+        diff = datetime.now() - dt
+        
+        if diff.days > 0:
+            return f"{diff.days} days ago"
+        elif diff.seconds // 3600 > 0:
+            return f"{diff.seconds // 3600} hours ago"
+        else:
+            return f"{diff.seconds // 60} minutes ago"
+    
+    return render_template('events.html',
+                         active_events=active_events,
+                         market_sentiment=market_sentiment,
+                         from_now=from_now)
+
+@app.route('/api/events/generate', methods=['POST'])
+def generate_event():
+    """Generate a new economic event."""
+    try:
+        # Get event type from request (optional)
+        data = request.get_json() or {}
+        event_type = data.get('event_type')
+        
+        # Generate the event
+        new_event = event_manager.generate_event(event_type)
+        
+        return jsonify({
+            'success': True,
+            'event': new_event
+        })
+    except Exception as e:
+        logging.error(f"Error generating event: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/shop/purchase', methods=['POST'])
 def purchase_item():

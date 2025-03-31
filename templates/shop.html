@@ -256,6 +256,8 @@
                     <li><a href="{{ url_for('guilds') }}">Guilds</a></li>
                     <li><a href="{{ url_for('inventory') }}">Inventory</a></li>
                     <li><a href="{{ url_for('investments') }}">Investments</a></li>
+                    <li><a href="{{ url_for('shop') }}">Shop</a></li>
+                    <li><a href="{{ url_for('events') }}">Events</a></li>
                 </ul>
             </nav>
         </header>
@@ -358,6 +360,7 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/economy-animations.js') }}"></script>
     <script>
         // Purchase confirmation modal
         const purchaseModal = document.getElementById('purchaseModal');
@@ -366,6 +369,7 @@
         const confirmPurchaseBtn = document.getElementById('confirmPurchase');
         const cancelPurchaseBtn = document.getElementById('cancelPurchase');
         let currentItemId = null;
+        let currentItemType = null;
         
         // Show purchase modal when buy button is clicked
         document.querySelectorAll('.btn-buy').forEach(button => {
@@ -373,6 +377,16 @@
                 const itemId = button.getAttribute('data-item-id');
                 const itemName = button.getAttribute('data-item-name');
                 const itemPrice = button.getAttribute('data-item-price');
+                const itemCard = button.closest('.shop-item');
+                const itemTags = itemCard ? itemCard.querySelectorAll('.tag') : [];
+                
+                // Store item category/type for animations
+                currentItemType = '';
+                itemTags.forEach(tag => {
+                    if (tag.classList.contains('consumable')) currentItemType = 'consumable';
+                    if (tag.classList.contains('limited')) currentItemType = 'limited';
+                    if (tag.classList.contains('role')) currentItemType = 'role';
+                });
                 
                 currentItemId = itemId;
                 modalItemName.textContent = itemName;
@@ -396,19 +410,63 @@
                     });
                     
                     const result = await response.json();
+                    purchaseModal.style.display = 'none';
                     
                     if (result.success) {
-                        alert('Purchase successful!');
-                        window.location.reload(); // Refresh to update inventory and balance
+                        // Add animation based on item type
+                        if (window.economyAnimations) {
+                            const itemName = modalItemName.textContent;
+                            
+                            // Play different animation based on item type
+                            if (currentItemType === 'limited') {
+                                window.economyAnimations.playConfettiAnimation('rare');
+                                window.economyAnimations.createFloatingText(
+                                    window.innerWidth / 2, 
+                                    window.innerHeight / 2,
+                                    'Rare Item Acquired!',
+                                    '#FFC107'
+                                );
+                            } else if (currentItemType === 'role') {
+                                window.economyAnimations.playConfettiAnimation('epic');
+                                window.economyAnimations.createFloatingText(
+                                    window.innerWidth / 2, 
+                                    window.innerHeight / 2,
+                                    'Special Role Unlocked!',
+                                    '#9C27B0'
+                                );
+                            } else {
+                                window.economyAnimations.playPurchaseAnimation();
+                            }
+                            
+                            // Add floating text with specific message
+                            setTimeout(() => {
+                                window.economyAnimations.createFloatingText(
+                                    window.innerWidth / 2, 
+                                    window.innerHeight / 2 + 50,
+                                    itemName + ' purchased!',
+                                    '#43B581'
+                                );
+                            }, 200);
+                        }
+                        
+                        // Add result element for animation hook
+                        const resultElement = document.createElement('div');
+                        resultElement.className = 'purchase-result success';
+                        resultElement.style.display = 'none';
+                        document.body.appendChild(resultElement);
+                        
+                        // Refresh after animations have time to play
+                        setTimeout(() => {
+                            window.location.reload(); // Refresh to update inventory and balance
+                        }, 1800);
                     } else {
                         alert(`Error: ${result.message}`);
                     }
                 } catch (error) {
                     alert('An error occurred during purchase.');
                     console.error(error);
+                    purchaseModal.style.display = 'none';
                 }
-                
-                purchaseModal.style.display = 'none';
             }
         });
         
@@ -422,6 +480,36 @@
             if (e.target === purchaseModal) {
                 purchaseModal.style.display = 'none';
             }
+        });
+        
+        // Add animation to category nav
+        document.querySelectorAll('.category-nav a').forEach((link, index) => {
+            link.style.animationDelay = `${index * 50}ms`;
+            link.classList.add('animate-in');
+            
+            // Add hover animation
+            link.addEventListener('mouseenter', () => {
+                if (window.economyAnimations) {
+                    const rect = link.getBoundingClientRect();
+                    const x = rect.left + rect.width / 2;
+                    const y = rect.top;
+                    
+                    // Small sparkle effect on hover
+                    window.economyAnimations.playCoinFallAnimation(x, y, 3);
+                }
+            });
+        });
+        
+        // Add animation to shop items
+        document.querySelectorAll('.shop-item').forEach((item, index) => {
+            item.style.opacity = 0;
+            item.style.transform = 'translateY(20px)';
+            
+            setTimeout(() => {
+                item.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                item.style.opacity = 1;
+                item.style.transform = 'translateY(0)';
+            }, 100 + index * 50);
         });
     </script>
 </body>
