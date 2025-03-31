@@ -128,9 +128,10 @@ class Betting(BaseCog):
             *option_parts, amount = option_and_amount.rsplit(' ', 1)
             choice = ' '.join(option_parts)
             amount = int(amount)
-        """Place a bet on an event."""
-        if bet_id not in self.active_bets:
-            await ctx.send("Bet not found!")
+            
+            if bet_id not in self.active_bets:
+                await ctx.send("Bet not found!")
+                return
             return
 
         bet = self.active_bets[bet_id]
