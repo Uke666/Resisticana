@@ -1,2 +1,1 @@
-
-{"transactions": [], "next_id": 1}
+{"transactions": [{"id": 1, "sender_id": null, "recipient_id": 1213811705709203530, "amount": 100, "type": "daily", "message": "Daily reward claimed", "timestamp": "2025-03-31T10:56:03.634541"}], "next_id": 2}
