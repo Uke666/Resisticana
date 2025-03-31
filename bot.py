@@ -33,11 +33,23 @@ async def on_ready():
     # Sync slash commands with Discord
     try:
         logging.info("Syncing slash commands...")
+        
+        # First, sync commands for each cog individually
+        for cog_name in bot.cogs:
+            cog = bot.get_cog(cog_name)
+            if hasattr(cog, 'sync_slash_commands'):
+                try:
+                    await cog.sync_slash_commands()
+                    logging.info(f"Successfully synced {cog_name} commands")
+                except Exception as e:
+                    logging.error(f"Error syncing {cog_name} commands: {e}")
+        
+        # Then, sync the global command tree
         commands = await bot.tree.sync()
         logging.info(f"Successfully synced {len(commands)} slash commands!")
     except discord.HTTPException as e:
         if e.code == 429:  # Rate limit error
-            logging.warning("Rate limited while syncing commands. Commands will be available after a few minutes.")
+            logging.warning("Rate limited while syncing commands. Use the /admin_sync command after a few minutes.")
         else:
             logging.error(f"Failed to sync slash commands: {e}")
 
@@ -177,11 +189,14 @@ async def help_command(ctx, category=None):
         embed.title = "Betting Commands"
         embed.description = "Commands for AI-powered betting system."
 
-        embed.add_field(name=f"{prefix}createbet <event_description>", value="Create a new betting event", inline=False)
+        embed.add_field(name=f"{prefix}createbet <event_description>", value="Create a new betting event with AI-generated options", inline=False)
+        embed.add_field(name=f"{prefix}sportsbet <description> <end_hours> <option1> <option2> [option3] [option4]", 
+                       value="Create a sports bet that will be automatically resolved", inline=False)
         embed.add_field(name=f"{prefix}placebet <bet_id> <option> <amount>", value="Place a bet on an event", inline=False)
         embed.add_field(name=f"{prefix}activebets", value="View all active betting events", inline=False)
+        embed.add_field(name=f"{prefix}pastbets [limit]", value="View past resolved betting events", inline=False)
         embed.add_field(name=f"{prefix}mybet <bet_id>", value="View your bet on an event", inline=False)
-        embed.add_field(name=f"{prefix}betinfo <bet_id>", value="Get detailed information about a bet", inline=False)
+        embed.add_field(name=f"{prefix}cancelbet <bet_id>", value="Cancel your bet and get a refund", inline=False)
 
     # General commands
     elif category.lower() == "general":
@@ -296,11 +311,14 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
         embed.title = "Betting Commands"
         embed.description = "Commands for AI-powered betting system."
 
-        embed.add_field(name="/createbet event_description:<description>", value="Create a new betting event", inline=False)
-        embed.add_field(name="/placebet bet_id:<id> option:<choice> amount:<amount>", value="Place a bet on an event", inline=False)
+        embed.add_field(name="/createbet event_description:<description>", value="Create a new betting event with AI-generated options", inline=False)
+        embed.add_field(name="/sportsbet match_description:<desc> end_time:<hours> option1:<option1> option2:<option2>", 
+                       value="Create a sports bet that will be automatically resolved", inline=False)
+        embed.add_field(name="/placebet bet_id:<id> choice:<option> amount:<amount>", value="Place a bet on an event", inline=False)
         embed.add_field(name="/activebets", value="View all active betting events", inline=False)
+        embed.add_field(name="/pastbets limit:<number>", value="View past resolved betting events", inline=False)
         embed.add_field(name="/mybet bet_id:<id>", value="View your bet on an event", inline=False)
-        embed.add_field(name="/betinfo bet_id:<id>", value="Get detailed information about a bet", inline=False)
+        embed.add_field(name="/cancelbet bet_id:<id>", value="Cancel your bet and get a refund", inline=False)
 
     # General commands
     elif category.lower() == "general":
@@ -388,10 +406,24 @@ async def sync_commands(ctx):
     """Manually sync slash commands (admin only)."""
     try:
         logging.info(f"Admin {ctx.author.name} manually syncing slash commands")
-        # Clear existing commands first
+        
+        # First sync individual cogs (which may add commands to the tree)
+        for cog_name in bot.cogs:
+            cog = bot.get_cog(cog_name)
+            if hasattr(cog, 'sync_slash_commands'):
+                try:
+                    await cog.sync_slash_commands()
+                    logging.info(f"Successfully synced {cog_name} commands")
+                    await ctx.send(f"✅ Synced {cog_name} commands!")
+                except Exception as e:
+                    logging.error(f"Error syncing {cog_name} commands: {e}")
+                    await ctx.send(f"❌ Error syncing {cog_name} commands: {e}")
+        
+        # Then sync the global command tree
         bot.tree.clear_commands(guild=None)
-        await bot.tree.sync()
-        await ctx.send("✅ Slash commands cleared and resynced globally!")
+        synced = await bot.tree.sync()
+        logging.info(f"Successfully synced {len(synced)} global commands")
+        await ctx.send(f"✅ Slash commands cleared and resynced globally! ({len(synced)} commands)")
     except Exception as e:
         logging.error(f"Manual sync error: {e}")
         await ctx.send(f"❌ Error syncing slash commands: {e}")
@@ -402,11 +434,32 @@ async def sync_commands_slash(interaction: discord.Interaction):
     """Slash command for manually syncing commands."""
     try:
         logging.info(f"Admin {interaction.user.name} manually syncing slash commands")
-        await bot.tree.sync()
-        await interaction.response.send_message("✅ Slash commands synced globally!", ephemeral=True)
+        
+        # First sync individual cogs (which may add commands to the tree)
+        await interaction.response.send_message("🔄 Syncing commands...", ephemeral=True)
+        
+        for cog_name in bot.cogs:
+            cog = bot.get_cog(cog_name)
+            if hasattr(cog, 'sync_slash_commands'):
+                try:
+                    await cog.sync_slash_commands()
+                    logging.info(f"Successfully synced {cog_name} commands")
+                    await interaction.followup.send(f"✅ Synced {cog_name} commands!", ephemeral=True)
+                except Exception as e:
+                    logging.error(f"Error syncing {cog_name} commands: {e}")
+                    await interaction.followup.send(f"❌ Error syncing {cog_name} commands: {e}", ephemeral=True)
+        
+        # Then sync the global command tree
+        bot.tree.clear_commands(guild=None)
+        synced = await bot.tree.sync()
+        logging.info(f"Successfully synced {len(synced)} global commands")
+        await interaction.followup.send(f"✅ Slash commands cleared and resynced globally! ({len(synced)} commands)", ephemeral=True)
     except Exception as e:
         logging.error(f"Manual sync error: {e}")
-        await interaction.response.send_message(f"❌ Error syncing slash commands: {e}", ephemeral=True)
+        try:
+            await interaction.followup.send(f"❌ Error syncing slash commands: {e}", ephemeral=True)
+        except:
+            await interaction.response.send_message(f"❌ Error syncing slash commands: {e}", ephemeral=True)
 
 # Error handlers for permission checks
 @sync_commands.error

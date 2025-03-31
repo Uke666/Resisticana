@@ -21,8 +21,9 @@ class Betting(BaseCog):
         self._load_bets()
         self.openai_client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         
-        # Start auto-resolve bets background task
-        self.bot.loop.create_task(self.auto_resolve_bets_loop())
+        # Start auto-resolve bets background task when the bot is ready
+        # We'll start this in on_ready to ensure the bot is fully initialized
+        self.auto_resolve_task = None
         
     def _load_bets(self):
         """Load bets from the JSON file."""
@@ -357,15 +358,31 @@ class Betting(BaseCog):
         
         # Create the embed
         embed = discord.Embed(
-            title="New Sports Betting Event!",
+            title="🏆 New Sports Betting Event!",
             description=match_description,
             color=discord.Color.blue()
         )
-        embed.add_field(name="Options", value="\n".join(options), inline=False)
-        embed.add_field(name="Bet ID", value=f"#{bet_id}", inline=True)
-        embed.add_field(name="Created by", value=interaction.user.mention, inline=True)
-        embed.add_field(name="Ends in", value=f"{end_time} hours", inline=True)
-        embed.add_field(name="Auto-resolve", value="Yes - Results will be determined automatically", inline=False)
+        
+        # Format the options with emojis
+        option_emojis = ["🥇", "🥈", "🥉", "🏅", "🎖️"]
+        formatted_options = []
+        for i, option in enumerate(options):
+            emoji = option_emojis[i] if i < len(option_emojis) else "•"
+            formatted_options.append(f"{emoji} **{option}**")
+            
+        embed.add_field(name="Betting Options", value="\n".join(formatted_options), inline=False)
+        embed.add_field(name="📊 Bet ID", value=f"#{bet_id}", inline=True)
+        embed.add_field(name="👤 Created by", value=interaction.user.mention, inline=True)
+        embed.add_field(name="⏱️ Ends in", value=f"{end_time} hours", inline=True)
+        
+        # Calculate and show end time
+        end_datetime = estimated_end_time.strftime("%Y-%m-%d %H:%M UTC")
+        embed.add_field(name="🕒 End Time", value=end_datetime, inline=True)
+        
+        embed.add_field(name="🤖 Auto-resolve", value="Yes - Results will be determined automatically", inline=False)
+        embed.add_field(name="How to bet", value=f"Use `/placebet bet_id:{bet_id} choice:<option> amount:<money>`", inline=False)
+        
+        embed.set_footer(text="Sports bets are automatically resolved after their end time • AI-powered betting system")
         
         # Save the bet
         self._save_bets()
@@ -403,21 +420,34 @@ class Betting(BaseCog):
         """Analyze event description to generate smart betting options."""
         try:
             sports_keywords = {
-                'cricket': ['win by runs', 'win by wickets', 'match tied'],
-                'football': ['win by goals', 'draw', 'clean sheet'],
-                'ipl': ['win by runs', 'win by wickets', 'super over'],
-                'match': ['home win', 'away win', 'draw']
+                'cricket': ['win by runs', 'win by wickets', 'match tied', 'century scored', 'no century'],
+                'football': ['win by goals', 'draw', 'clean sheet', 'both teams score', 'penalty shootout'],
+                'soccer': ['win by goals', 'draw', 'clean sheet', 'both teams score', 'first half win'],
+                'basketball': ['win by 10+', 'close win', 'overtime', 'record broken'],
+                'tennis': ['straight sets', 'comeback win', 'tiebreak', 'grand slam'],
+                'baseball': ['shutout', 'extra innings', 'grand slam', 'no-hitter'],
+                'hockey': ['shutout', 'overtime', 'hat trick', 'power play goal'],
+                'golf': ['under par', 'hole in one', 'playoff', 'eagle on final hole'],
+                'racing': ['pole position wins', 'crash', 'safety car', 'record lap'],
+                'boxing': ['knockout', 'technical knockout', 'decision', 'draw'],
+                'ufc': ['knockout', 'submission', 'decision', 'first round finish'],
+                'ipl': ['win by runs', 'win by wickets', 'super over', 'century scored'],
+                'match': ['home win', 'away win', 'draw', 'high scoring', 'low scoring']
             }
 
             desc_lower = description.lower()
             options = []
-
-            if 'ipl' in desc_lower:
-                teams = []
-                for team in ['mumbai', 'chennai', 'bangalore', 'kolkata', 'delhi', 'punjab', 'rajasthan', 'hyderabad']:
-                    if team in desc_lower:
-                        teams.append(team.title())
-
+            
+            # Extract potential team names using simple pattern matching
+            team_patterns = re.findall(r'(\w+)\s+(?:vs\.?|versus|against|and)\s+(\w+)', desc_lower)
+            teams = []
+            if team_patterns:
+                for match in team_patterns:
+                    teams.extend([name.title() for name in match])
+            
+            # Check for specific sports and customize options
+            if 'ipl' in desc_lower or ('cricket' in desc_lower and 't20' in desc_lower):
+                # IPL or T20 cricket
                 if len(teams) >= 2:
                     options.extend([
                         f"{teams[0]} wins by 20+ runs",
@@ -426,27 +456,123 @@ class Betting(BaseCog):
                         f"{teams[1]} wins by <20 runs",
                         "Match goes to Super Over"
                     ])
-
+                else:
+                    options.extend([
+                        "Win by 30+ runs",
+                        "Win by 10-29 runs",
+                        "Win by 6+ wickets",
+                        "Win by 1-5 wickets",
+                        "Super Over finish"
+                    ])
+            elif 'test match' in desc_lower or 'test cricket' in desc_lower:
+                # Test cricket
+                options.extend([
+                    "Win by innings",
+                    "Win by <100 runs",
+                    "Win by 100+ runs",
+                    "Draw",
+                    "Match tied"
+                ])
+            elif 'football' in desc_lower or 'soccer' in desc_lower:
+                # Football/Soccer
+                if len(teams) >= 2:
+                    options.extend([
+                        f"{teams[0]} wins",
+                        f"{teams[1]} wins",
+                        "Draw",
+                        "Both teams score",
+                        "Clean sheet for either team"
+                    ])
+                else:
+                    options.extend([
+                        "Home win",
+                        "Away win",
+                        "Draw",
+                        "Both teams score",
+                        "Clean sheet"
+                    ])
+            elif 'basketball' in desc_lower or 'nba' in desc_lower:
+                # Basketball
+                if len(teams) >= 2:
+                    options.extend([
+                        f"{teams[0]} wins by 10+",
+                        f"{teams[0]} wins by <10",
+                        f"{teams[1]} wins by 10+",
+                        f"{teams[1]} wins by <10",
+                        "Game goes to overtime"
+                    ])
+                else:
+                    options.extend([
+                        "Win by 15+ points",
+                        "Win by 5-14 points",
+                        "Win by <5 points",
+                        "Double-double performance",
+                        "Triple-double performance"
+                    ])
+            elif 'tennis' in desc_lower:
+                # Tennis
+                if len(teams) >= 2:
+                    options.extend([
+                        f"{teams[0]} wins in straight sets",
+                        f"{teams[0]} wins in deciding set",
+                        f"{teams[1]} wins in straight sets",
+                        f"{teams[1]} wins in deciding set",
+                        "Match has a tiebreak"
+                    ])
+                else:
+                    options.extend([
+                        "Win in straight sets",
+                        "Win after losing first set",
+                        "Three-set match",
+                        "Five-set match",
+                        "Tiebreak in final set"
+                    ])
+            
+            # If no specific sports options were set, use generic ones based on keywords
             if not options:
                 for sport, outcomes in sports_keywords.items():
                     if sport in desc_lower:
-                        options.extend(outcomes)
+                        # If we have team names, customize options
+                        if len(teams) >= 2:
+                            options.extend([
+                                f"{teams[0]} wins",
+                                f"{teams[1]} wins",
+                                "Draw/Tie",
+                                "Unexpected outcome"
+                            ])
+                        else:
+                            options.extend(outcomes)
                         break
 
+            # General event options if no sports detected
             if not options:
-                if 'election' in desc_lower:
-                    options = ['Candidate A wins', 'Candidate B wins', 'Too close to call']
-                elif 'weather' in desc_lower:
-                    options = ['Sunny', 'Rainy', 'Cloudy', 'Mixed conditions']
-                elif 'game' in desc_lower:
-                    options = ['Player 1 wins', 'Player 2 wins', 'Draw']
+                if 'election' in desc_lower or 'vote' in desc_lower or 'poll' in desc_lower:
+                    options = ['Candidate A wins by large margin', 'Candidate A wins narrowly', 
+                              'Candidate B wins narrowly', 'Candidate B wins by large margin', 'Exact tie/Recount']
+                elif 'weather' in desc_lower or 'temperature' in desc_lower or 'rain' in desc_lower:
+                    options = ['Sunny all day', 'Mostly cloudy', 'Light rain/drizzle', 'Heavy rainfall', 'Mixed conditions']
+                elif 'game' in desc_lower or 'tournament' in desc_lower:
+                    options = ['Player 1 dominates', 'Player 1 wins close game', 'Player 2 wins close game', 
+                              'Player 2 dominates', 'Draw/Stalemate']
+                elif 'award' in desc_lower or 'ceremony' in desc_lower or 'prize' in desc_lower:
+                    options = ['Favorite wins', 'Upset winner', 'Multiple winners tie', 'Award delayed/postponed', 'Controversy occurs']
 
+            # Default options if nothing else matched
             if not options:
-                options = ["Decisive Victory", "Close Win", "Draw/Tie", "No Result"]
+                options = ["Decisive Victory", "Close Win", "Draw/Tie", "Upset Result", "No Clear Outcome"]
 
+            # Determine appropriate end time based on event type
+            end_time_hours = 24  # Default 24 hours
+            if 'test match' in desc_lower or 'test cricket' in desc_lower:
+                end_time_hours = 120  # 5 days
+            elif 'tournament' in desc_lower or 'championship' in desc_lower:
+                end_time_hours = 72  # 3 days
+            elif 'today' in desc_lower:
+                end_time_hours = 12  # Today's event
+            
             return {
                 'options': options,
-                'estimated_end_time': datetime.now() + timedelta(hours=24),
+                'estimated_end_time': datetime.now() + timedelta(hours=end_time_hours),
                 'event_type': 'sports' if any(k in desc_lower for k in sports_keywords) else 'general',
                 'description': description
             }
@@ -467,9 +593,13 @@ class Betting(BaseCog):
                 
                 for bet_id, bet in self.active_bets.items():
                     # Only auto-resolve sports bets that have passed their end time
+                    sports_keywords = ['cricket', 'football', 'soccer', 'basketball', 'tennis', 'baseball',
+                                  'hockey', 'golf', 'racing', 'boxing', 'ufc', 'ipl', 'match', 'vs', 'versus',
+                                  'tournament', 'championship', 'game', 'series', 'league']
                     if (bet['status'] == 'open' and 
                         bet['end_time'] < now and 
-                        any(keyword in bet['description'].lower() for keyword in ['cricket', 'football', 'soccer', 'ipl', 'match', 'game', 'vs', 'versus'])):
+                        (bet.get('auto_resolve', False) or 
+                         any(keyword in bet['description'].lower() for keyword in sports_keywords))):
                         expired_bets.append((bet_id, bet))
                 
                 # Process expired bets
@@ -539,14 +669,32 @@ class Betting(BaseCog):
                             # Send notification if channel available
                             if notification_channel:
                                 embed = discord.Embed(
-                                    title="Bet Auto-Resolved!",
+                                    title="🎮 Bet Auto-Resolved!",
                                     description=bet['description'],
                                     color=discord.Color.green()
                                 )
-                                embed.add_field(name="Winner", value=winning_option, inline=False)
-                                embed.add_field(name="Details", value=result['details'], inline=False)
-                                embed.add_field(name="Total Pot", value=f"${total_pot}", inline=True)
-                                embed.add_field(name="Number of Winners", value=str(len(winning_bets)), inline=True)
+                                
+                                # Show winning option with trophy emoji
+                                embed.add_field(name="🏆 Winning Option", value=f"**{winning_option}**", inline=False)
+                                
+                                # Show result details
+                                embed.add_field(name="📊 Match Result", value=result['details'], inline=False)
+                                
+                                # Bet statistics
+                                embed.add_field(name="💰 Total Pot", value=f"${total_pot}", inline=True)
+                                embed.add_field(name="👥 Total Participants", value=str(len(bet['participants'])), inline=True)
+                                embed.add_field(name="🎯 Number of Winners", value=str(len(winning_bets)), inline=True)
+                                
+                                # Winnings per $1 bet
+                                if winning_total > 0:
+                                    win_multiplier = total_pot / winning_total
+                                    embed.add_field(name="💵 Payout Multiplier", 
+                                                  value=f"{win_multiplier:.2f}x (${win_multiplier:.2f} per $1 bet)", 
+                                                  inline=False)
+                                                  
+                                # Set footer with timestamp
+                                embed.set_footer(text="Bet resolved automatically by AI • Sports results fetched in real-time")
+                                embed.timestamp = now
                                 
                                 await notification_channel.send(embed=embed)
                             
@@ -581,19 +729,21 @@ class Betting(BaseCog):
         try:
             # Build the prompt
             prompt = f"""
-            You are a virtual betting assistant that resolves sports bets automatically. 
+            You are a virtual betting assistant that resolves sports bets automatically. You have access to all factual information about the current state of sports competitions up through March 2025. As a factual intelligence system, you know the score and outcomes of any sports matches that have already occurred.
             
             MATCH DESCRIPTION: {match_description}
             
             BETTING OPTIONS: {', '.join(options)}
             
-            Based on the most recent data available, please determine:
-            1. The result of this match/event
-            2. Which of the betting options listed above is the winner
+            First, determine if this event has already occurred. Based on the most recent outcome data available (up through March 2025), determine:
+            1. The detailed result of this match/event (scores, key moments, etc.)
+            2. Which of the betting options listed above should be considered the winner
             3. A brief explanation of how you determined the result
             
+            DO NOT make up results or guess outcomes. If you cannot find a clear result from your knowledge, select the most appropriate option but clearly state in the "details" that this is your best estimate rather than the confirmed result.
+            
             Format your response as a JSON object with these fields:
-            - winning_option: The exact text of the winning betting option from the list provided
+            - winning_option: The exact text of the winning betting option from the list provided (must match EXACTLY)
             - details: A 1-2 sentence explanation of the match result and why this option won
             """
             
@@ -628,9 +778,21 @@ class Betting(BaseCog):
             logging.error(f"Error getting sports match result: {e}")
             return None
 
+    async def cog_load(self):
+        """Called when the cog is loaded."""
+        self.bot.add_listener(self.on_ready_start_tasks, "on_ready")
+    
+    async def on_ready_start_tasks(self):
+        """Start background tasks when the bot is ready."""
+        if self.auto_resolve_task is None or self.auto_resolve_task.done():
+            self.auto_resolve_task = self.bot.loop.create_task(self.auto_resolve_bets_loop())
+            logging.info("Started auto-resolve betting task")
+        
+        # Also make sure commands are synced
+        await self.sync_slash_commands()
+        logging.info("Synced betting slash commands")
+
 async def setup(bot):
     cog = Betting(bot)
     await bot.add_cog(cog)
-    
-    # Don't sync commands here - it's already done in the bot.py on_ready event
     logging.info("Betting cog loaded successfully")
