@@ -1,1 +1,1 @@
-{"requests": [], "next_id": 1}
+{"requests": [{"id": 1, "requester_id": 1213811705709203530, "recipient_id": 1320739486220681317, "amount": 100, "reason": "", "status": "pending", "created_at": {"__datetime__": "2025-03-31T11:00:33.069391"}, "resolved_at": null}, {"id": 2, "requester_id": 1213811705709203530, "recipient_id": 1186645962547007530, "amount": 10, "reason": "", "status": "pending", "created_at": {"__datetime__": "2025-03-31T11:01:05.960515"}, "resolved_at": null}], "next_id": 3}
