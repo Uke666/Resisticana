@@ -64,17 +64,17 @@ class Betting(BaseCog):
                 'ipl': ['win by runs', 'win by wickets', 'super over'],
                 'match': ['home win', 'away win', 'draw']
             }
-            
+
             desc_lower = description.lower()
             options = []
-            
+
             # Check for IPL specific match
             if 'ipl' in desc_lower:
                 teams = []
                 for team in ['mumbai', 'chennai', 'bangalore', 'kolkata', 'delhi', 'punjab', 'rajasthan', 'hyderabad']:
                     if team in desc_lower:
                         teams.append(team.title())
-                
+
                 if len(teams) >= 2:
                     options.extend([
                         f"{teams[0]} wins by 20+ runs",
@@ -83,14 +83,14 @@ class Betting(BaseCog):
                         f"{teams[1]} wins by <20 runs",
                         "Match goes to Super Over"
                     ])
-            
+
             # If no specific options were generated, try generic sports options
             if not options:
                 for sport, outcomes in sports_keywords.items():
                     if sport in desc_lower:
                         options.extend(outcomes)
                         break
-            
+
             # If still no options, use event-specific smart defaults
             if not options:
                 if 'election' in desc_lower:
@@ -99,11 +99,11 @@ class Betting(BaseCog):
                     options = ['Sunny', 'Rainy', 'Cloudy', 'Mixed conditions']
                 elif 'game' in desc_lower:
                     options = ['Player 1 wins', 'Player 2 wins', 'Draw']
-            
+
             # Final fallback to custom win/lose if nothing else matches
             if not options:
                 options = ["Decisive Victory", "Close Win", "Draw/Tie", "No Result"]
-            
+
             return {
                 'options': options,
                 'estimated_end_time': datetime.now() + timedelta(hours=24),
@@ -128,16 +128,15 @@ class Betting(BaseCog):
             *option_parts, amount = option_and_amount.rsplit(' ', 1)
             choice = ' '.join(option_parts)
             amount = int(amount)
-            
+
             if bet_id not in self.active_bets:
                 await ctx.send("Bet not found!")
                 return
-            return
 
-        bet = self.active_bets[bet_id]
-        if bet['status'] != 'open':
-            await ctx.send("This bet is no longer accepting entries!")
-            return
+            bet = self.active_bets[bet_id]
+            if bet['status'] != 'open':
+                await ctx.send("This bet is no longer accepting entries!")
+                return
 
         # Validate choice
         if choice not in bet['options']:
@@ -165,7 +164,7 @@ class Betting(BaseCog):
         except Exception as e:
             await ctx.send(f"Error placing bet: {str(e)}")
             return
-            
+
         await ctx.send(f"Bet placed! You bet ${amount} on {choice}")
 
     @commands.command(name="updatebet")
