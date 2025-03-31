@@ -385,8 +385,10 @@ async def sync_commands(ctx):
     """Manually sync slash commands (admin only)."""
     try:
         logging.info(f"Admin {ctx.author.name} manually syncing slash commands")
+        # Clear existing commands first
+        bot.tree.clear_commands(guild=None)
         await bot.tree.sync()
-        await ctx.send("✅ Slash commands synced globally!")
+        await ctx.send("✅ Slash commands cleared and resynced globally!")
     except Exception as e:
         logging.error(f"Manual sync error: {e}")
         await ctx.send(f"❌ Error syncing slash commands: {e}")
