@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Discord Economy Bot</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('home') }}">
+                <i data-feather="dollar-sign"></i> Discord Economy Bot
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('home') }}">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('dashboard') }}">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('guilds') }}">Guilds</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row mb-4">
+            <div class="col-12">
+                <h1 class="mb-4">Bot Dashboard</h1>
+                <div id="status-banner" class="alert alert-info">
+                    Checking bot status...
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i data-feather="server" class="me-2"></i> Bot Status
+                        </h5>
+                        <div id="status-details" class="mt-3">
+                            <div class="d-flex justify-content-between">
+                                <span>Status:</span>
+                                <span id="status-value">Loading...</span>
+                            </div>
+                            <div class="d-flex justify-content-between mt-2">
+                                <span>Uptime:</span>
+                                <span id="uptime-value">Loading...</span>
+                            </div>
+                            <div class="d-flex justify-content-between mt-2">
+                                <span>Last Started:</span>
+                                <span id="start-time">Loading...</span>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button id="refreshStatusBtn" class="btn btn-sm btn-primary">
+                                <i data-feather="refresh-cw" class="feather-small"></i> Refresh
+                            </button>
+                            <button id="dashboardStartBtn" class="btn btn-sm btn-success">
+                                <i data-feather="play" class="feather-small"></i> Start
+                            </button>
+                            <button id="dashboardRestartBtn" class="btn btn-sm btn-warning">
+                                <i data-feather="rotate-cw" class="feather-small"></i> Restart
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i data-feather="users" class="me-2"></i> User Statistics
+                        </h5>
+                        <div class="d-flex justify-content-between mt-3">
+                            <span>Total Users:</span>
+                            <span>0</span>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span>Active Today:</span>
+                            <span>0</span>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span>New This Week:</span>
+                            <span>0</span>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span>Daily Claims Today:</span>
+                            <span>0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i data-feather="database" class="me-2"></i> Economy Overview
+                        </h5>
+                        <div class="d-flex justify-content-between mt-3">
+                            <span>Total Money:</span>
+                            <span>$0</span>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span>In Wallets:</span>
+                            <span>$0</span>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span>In Banks:</span>
+                            <span>$0</span>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span>Daily Rewards Given:</span>
+                            <span>$0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i data-feather="activity" class="me-2"></i> Activity Over Time
+                        </h5>
+                        <canvas id="activityChart" height="250"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i data-feather="bar-chart-2" class="me-2"></i> Economy Distribution
+                        </h5>
+                        <canvas id="economyChart" height="250"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i data-feather="list" class="me-2"></i> Recent Events
+                        </h5>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Event</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>No events recorded yet</td>
+                                        <td></td>
+                                        <td></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-dark text-white py-4 mt-5">
+        <div class="container text-center">
+            <p>Discord Economy Bot &copy; 2025</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        // Initialize Feather icons
+        feather.replace();
+
+        // Charts initialization
+        const activityCtx = document.getElementById('activityChart').getContext('2d');
+        const activityChart = new Chart(activityCtx, {
+            type: 'line',
+            data: {
+                labels: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+                datasets: [{
+                    label: 'Commands Used',
+                    data: [0, 0, 0, 0, 0, 0, 0],
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    tension: 0.3,
+                    fill: false
+                }, {
+                    label: 'Active Users',
+                    data: [0, 0, 0, 0, 0, 0, 0],
+                    borderColor: 'rgba(153, 102, 255, 1)',
+                    tension: 0.3,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+
+        const economyCtx = document.getElementById('economyChart').getContext('2d');
+        const economyChart = new Chart(economyCtx, {
+            type: 'pie',
+            data: {
+                labels: ['Wallet', 'Bank'],
+                datasets: [{
+                    data: [50, 50],
+                    backgroundColor: [
+                        'rgba(255, 159, 64, 0.7)',
+                        'rgba(54, 162, 235, 0.7)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 159, 64, 1)',
+                        'rgba(54, 162, 235, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+
+        // Bot status management
+        function updateStatus() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusBanner = document.getElementById('status-banner');
+                    const statusValue = document.getElementById('status-value');
+                    const uptimeValue = document.getElementById('uptime-value');
+                    const startTime = document.getElementById('start-time');
+
+                    if (data.is_running) {
+                        statusBanner.className = 'alert alert-success';
+                        statusBanner.innerHTML = 'Bot is currently running';
+                        statusValue.innerHTML = '<span class="badge bg-success">Online</span>';
+                        
+                        // Calculate uptime
+                        const uptime = Math.floor((Date.now() / 1000) - data.start_time);
+                        let uptimeText = '';
+                        
+                        if (uptime < 60) {
+                            uptimeText = `${uptime} seconds`;
+                        } else if (uptime < 3600) {
+                            uptimeText = `${Math.floor(uptime / 60)} minutes`;
+                        } else {
+                            uptimeText = `${Math.floor(uptime / 3600)} hours, ${Math.floor((uptime % 3600) / 60)} minutes`;
+                        }
+                        
+                        uptimeValue.textContent = uptimeText;
+                        
+                        // Format start time
+                        const startDate = new Date(data.start_time * 1000);
+                        startTime.textContent = startDate.toLocaleString();
+                    } else {
+                        statusBanner.className = 'alert alert-danger';
+                        statusBanner.innerHTML = data.error ? 
+                            `Bot is offline: ${data.error}` : 'Bot is currently offline';
+                        statusValue.innerHTML = '<span class="badge bg-danger">Offline</span>';
+                        uptimeValue.textContent = 'N/A';
+                        startTime.textContent = 'N/A';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching status:', error);
+                });
+        }
+        
+        // Initial update
+        updateStatus();
+        
+        // Set up refresh button
+        document.getElementById('refreshStatusBtn').addEventListener('click', updateStatus);
+        
+        // Set up start button
+        document.getElementById('dashboardStartBtn').addEventListener('click', function() {
+            fetch('/start', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Bot starting...');
+                        setTimeout(updateStatus, 2000);
+                    } else {
+                        alert('Failed to start bot: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error starting bot:', error);
+                });
+        });
+        
+        // Set up restart button
+        document.getElementById('dashboardRestartBtn').addEventListener('click', function() {
+            fetch('/restart', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Bot restarting...');
+                        setTimeout(updateStatus, 2000);
+                    } else {
+                        alert('Failed to restart bot: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error restarting bot:', error);
+                });
+        });
+    </script>
+</body>
+</html>

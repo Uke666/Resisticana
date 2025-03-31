@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ guild.name }} - Discord Economy Bot</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('home') }}">
+                <i data-feather="dollar-sign"></i> Discord Economy Bot
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('home') }}">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('guilds') }}">Guilds</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('guilds') }}">Guilds</a></li>
+                <li class="breadcrumb-item active">{{ guild.name }}</li>
+            </ol>
+        </nav>
+
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <div class="d-flex align-items-center mb-3">
+                    {% if guild.icon %}
+                        <img src="{{ guild.icon }}" alt="{{ guild.name }}" class="guild-icon me-3" width="64" height="64">
+                    {% else %}
+                        <div class="guild-icon-placeholder me-3" style="width: 64px; height: 64px; font-size: 24px;">
+                            {{ guild.name[:1] }}
+                        </div>
+                    {% endif %}
+                    <h1 class="mb-0">{{ guild.name }}</h1>
+                </div>
+                <p class="text-muted">
+                    <i data-feather="clock" class="feather-small me-1"></i> Joined: {{ guild.joined_at.strftime('%Y-%m-%d %H:%M') }}
+                </p>
+            </div>
+            <div class="col-md-4 text-md-end">
+                <div class="btn-group">
+                    <a href="{{ url_for('guild_economy', guild_id=guild.id) }}" class="btn btn-outline-primary">
+                        <i data-feather="dollar-sign" class="feather-small"></i> Economy
+                    </a>
+                    <a href="{{ url_for('guild_companies', guild_id=guild.id) }}" class="btn btn-outline-primary">
+                        <i data-feather="users" class="feather-small"></i> Companies
+                    </a>
+                    <a href="{{ url_for('guild_bets', guild_id=guild.id) }}" class="btn btn-outline-primary">
+                        <i data-feather="trending-up" class="feather-small"></i> Bets
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i data-feather="users" class="me-2"></i> Member Statistics
+                        </h5>
+                        <div class="d-flex justify-content-between mt-3">
+                            <span>Total Members:</span>
+                            <span>{{ guild.members.count() }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span>Active Today:</span>
+                            <span>0</span>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span>With Company:</span>
+                            <span>0</span>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span>Claimed Daily Today:</span>
+                            <span>0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i data-feather="briefcase" class="me-2"></i> Company Statistics
+                        </h5>
+                        <div class="d-flex justify-content-between mt-3">
+                            <span>Total Companies:</span>
+                            <span>{{ guild.companies.count() }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span>Largest Company:</span>
+                            <span>-</span>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span>Oldest Company:</span>
+                            <span>-</span>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span>Newest Company:</span>
+                            <span>-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i data-feather="dollar-sign" class="me-2"></i> Economy Overview
+                        </h5>
+                        <div class="d-flex justify-content-between mt-3">
+                            <span>Total Currency:</span>
+                            <span>$0</span>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span>In Wallets:</span>
+                            <span>$0</span>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span>In Banks:</span>
+                            <span>$0</span>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span>Richest Member:</span>
+                            <span>-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i data-feather="activity" class="me-2"></i> Activity Overview
+                        </h5>
+                        <canvas id="activityChart" height="250"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i data-feather="pie-chart" class="me-2"></i> Economy Distribution
+                        </h5>
+                        <canvas id="economyChart" height="250"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i data-feather="list" class="me-2"></i> Recent Transactions
+                        </h5>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>User</th>
+                                        <th>Type</th>
+                                        <th>Amount</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="5" class="text-center">No transactions recorded yet</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-dark text-white py-4 mt-5">
+        <div class="container text-center">
+            <p>Discord Economy Bot &copy; 2025</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        // Initialize Feather icons
+        feather.replace({ class: 'feather-small' });
+
+        // Charts initialization
+        const activityCtx = document.getElementById('activityChart').getContext('2d');
+        const activityChart = new Chart(activityCtx, {
+            type: 'line',
+            data: {
+                labels: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+                datasets: [{
+                    label: 'Commands Used',
+                    data: [0, 0, 0, 0, 0, 0, 0],
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    tension: 0.3,
+                    fill: false
+                }, {
+                    label: 'Active Users',
+                    data: [0, 0, 0, 0, 0, 0, 0],
+                    borderColor: 'rgba(153, 102, 255, 1)',
+                    tension: 0.3,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+
+        const economyCtx = document.getElementById('economyChart').getContext('2d');
+        const economyChart = new Chart(economyCtx, {
+            type: 'pie',
+            data: {
+                labels: ['Wallet', 'Bank'],
+                datasets: [{
+                    data: [50, 50],
+                    backgroundColor: [
+                        'rgba(255, 159, 64, 0.7)',
+                        'rgba(54, 162, 235, 0.7)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 159, 64, 1)',
+                        'rgba(54, 162, 235, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+    </script>
+</body>
+</html>

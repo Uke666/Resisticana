@@ -1,17 +1,16 @@
+from app import app
 import os
 import logging
 import threading
 import time
-from flask import Flask, render_template, jsonify, session, redirect, url_for
+from flask import render_template, jsonify, session, redirect, url_for, request, flash
 from bot import run_bot
+import models
+from datetime import datetime
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, 
+logging.basicConfig(level=logging.DEBUG, 
                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-# Create Flask app
-app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET", "discord_economy_bot_secret")
 
 # Global status tracking
 bot_status = {
@@ -45,143 +44,7 @@ def start_bot_thread():
 @app.route('/')
 def home():
     """Home page of the dashboard."""
-    return """
-    <!DOCTYPE html>
-    <html data-bs-theme="dark">
-    <head>
-        <title>Discord Economy Bot Dashboard</title>
-        <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
-        <style>
-            .status-container {
-                margin-top: 50px;
-                text-align: center;
-            }
-            .status-indicator {
-                font-size: 1.2rem;
-                padding: 10px;
-                border-radius: 5px;
-                display: inline-block;
-                margin-bottom: 20px;
-            }
-            .running {
-                background-color: var(--bs-success);
-                color: white;
-            }
-            .stopped {
-                background-color: var(--bs-danger);
-                color: white;
-            }
-            .bot-info {
-                margin-top: 30px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="status-container">
-                <h1 class="mb-4">Discord Economy Bot</h1>
-                <div id="status" class="status-indicator">
-                    Checking bot status...
-                </div>
-                <div class="bot-info">
-                    <h2>Bot Features</h2>
-                    <ul class="list-group">
-                        <li class="list-group-item">Economy system with wallet and bank</li>
-                        <li class="list-group-item">Daily rewards of $100 for all users</li>
-                        <li class="list-group-item">Company creation and management</li>
-                        <li class="list-group-item">AI-generated quests for earning money</li>
-                        <li class="list-group-item">Role-based timeout system</li>
-                    </ul>
-                </div>
-                <div class="mt-4">
-                    <button id="refreshBtn" class="btn btn-primary">Refresh Status</button>
-                    <button id="startBtn" class="btn btn-success">Start Bot</button>
-                    <button id="restartBtn" class="btn btn-warning">Restart Bot</button>
-                </div>
-            </div>
-        </div>
-        
-        <script>
-            // Function to fetch bot status
-            function checkStatus() {
-                fetch('/status')
-                    .then(response => response.json())
-                    .then(data => {
-                        const statusDiv = document.getElementById('status');
-                        if (data.is_running) {
-                            statusDiv.className = 'status-indicator running';
-                            statusDiv.innerHTML = 'Bot is running ✅';
-                            
-                            // Calculate uptime
-                            const uptime = Math.floor((Date.now() / 1000) - data.start_time);
-                            let uptimeText = '';
-                            
-                            if (uptime < 60) {
-                                uptimeText = `${uptime} seconds`;
-                            } else if (uptime < 3600) {
-                                uptimeText = `${Math.floor(uptime / 60)} minutes`;
-                            } else {
-                                uptimeText = `${Math.floor(uptime / 3600)} hours, ${Math.floor((uptime % 3600) / 60)} minutes`;
-                            }
-                            
-                            statusDiv.innerHTML += `<br>Uptime: ${uptimeText}`;
-                        } else {
-                            statusDiv.className = 'status-indicator stopped';
-                            statusDiv.innerHTML = 'Bot is not running ❌';
-                            
-                            if (data.error) {
-                                statusDiv.innerHTML += `<br>Error: ${data.error}`;
-                            }
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error fetching status:', error);
-                    });
-            }
-            
-            // Check status on page load
-            checkStatus();
-            
-            // Set up refresh button
-            document.getElementById('refreshBtn').addEventListener('click', checkStatus);
-            
-            // Set up start button
-            document.getElementById('startBtn').addEventListener('click', function() {
-                fetch('/start', { method: 'POST' })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert('Bot starting...');
-                            setTimeout(checkStatus, 2000);
-                        } else {
-                            alert('Failed to start bot: ' + data.error);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error starting bot:', error);
-                    });
-            });
-            
-            // Set up restart button
-            document.getElementById('restartBtn').addEventListener('click', function() {
-                fetch('/restart', { method: 'POST' })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert('Bot restarting with new token...');
-                            setTimeout(checkStatus, 2000);
-                        } else {
-                            alert('Failed to restart bot: ' + data.error);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error restarting bot:', error);
-                    });
-            });
-        </script>
-    </body>
-    </html>
-    """
+    return render_template('index.html')
 
 @app.route('/status')
 def status():
@@ -219,7 +82,53 @@ def restart():
     
     return jsonify({"success": True})
 
+# Dashboard routes
+@app.route('/dashboard')
+def dashboard():
+    """Dashboard page showing bot statistics."""
+    return render_template('dashboard.html')
+
+@app.route('/guilds')
+def guilds():
+    """List of guilds the bot is in."""
+    guilds = models.Guild.query.all()
+    return render_template('guilds.html', guilds=guilds)
+
+@app.route('/guild/<int:guild_id>')
+def guild_detail(guild_id):
+    """Detailed view for a specific guild."""
+    guild = models.Guild.query.get_or_404(guild_id)
+    return render_template('guild_detail.html', guild=guild)
+
+@app.route('/guild/<int:guild_id>/economy')
+def guild_economy(guild_id):
+    """Economy statistics for a specific guild."""
+    guild = models.Guild.query.get_or_404(guild_id)
+    members = models.GuildMember.query.filter_by(guild_id=guild_id).all()
+    return render_template('guild_economy.html', guild=guild, members=members)
+
+@app.route('/guild/<int:guild_id>/companies')
+def guild_companies(guild_id):
+    """Companies in a specific guild."""
+    guild = models.Guild.query.get_or_404(guild_id)
+    companies = models.Company.query.filter_by(guild_id=guild_id).all()
+    return render_template('guild_companies.html', guild=guild, companies=companies)
+
+@app.route('/guild/<int:guild_id>/bets')
+def guild_bets(guild_id):
+    """Bets in a specific guild."""
+    guild = models.Guild.query.get_or_404(guild_id)
+    active_bets = models.Bet.query.filter_by(guild_id=guild_id, is_active=True).all()
+    past_bets = models.Bet.query.filter_by(guild_id=guild_id, is_active=False).all()
+    return render_template('guild_bets.html', guild=guild, active_bets=active_bets, past_bets=past_bets)
+
 if __name__ == "__main__":
+    # Create necessary directories
+    os.makedirs('templates', exist_ok=True)
+    os.makedirs('static', exist_ok=True)
+    os.makedirs('static/css', exist_ok=True)
+    os.makedirs('static/js', exist_ok=True)
+    
     # Start bot thread automatically
     if not bot_status["is_running"]:
         bot_thread = threading.Thread(target=start_bot_thread)
