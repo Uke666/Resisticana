@@ -886,7 +886,7 @@ class Items(BaseCog):
                     return
                 
             # Handle Loot Boxes
-            elif item.category.name == 'Loot Boxes':
+            elif hasattr(item, 'category') and item.category and item.category.name == 'Loot Boxes':
                 min_reward = properties.get('min_reward', 100)
                 max_reward = properties.get('max_reward', 500)
                 import random
@@ -1249,7 +1249,7 @@ class Items(BaseCog):
                 return
                 
             # Handle Loot Boxes
-            elif item.category.name == 'Loot Boxes':
+            elif hasattr(item, 'category') and item.category and item.category.name == 'Loot Boxes':
                 min_reward = properties.get('min_reward', 100)
                 max_reward = properties.get('max_reward', 500)
                 import random
