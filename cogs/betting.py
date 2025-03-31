@@ -17,7 +17,8 @@ class Betting(BaseCog):
         self.db = Database()
         self.active_bets = {}
         self.bet_results = {}
-        self.client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        openai.api_key = os.environ.get("OPENAI_API_KEY")
+        self.client = openai
         
     @commands.command(name="createbet")
     async def create_bet(self, ctx, *, event_description: str):
@@ -187,7 +188,7 @@ class Betting(BaseCog):
             
             Return as JSON with fields: options (list), estimated_end_time (ISO date), event_type (string)"""
             
-            response = await self.client.chat.completions.acreate(
+            response = await self.client.ChatCompletion.acreate(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"}
