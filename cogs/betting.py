@@ -6,6 +6,7 @@ import json
 import os
 import re
 import aiohttp
+import asyncio
 from datetime import datetime, timedelta
 from utils.database import Database
 from cogs.base_cog import BaseCog
@@ -19,6 +20,9 @@ class Betting(BaseCog):
         self.bets_file = "data/bets.json"
         self._load_bets()
         self.openai_client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        
+        # Start auto-resolve bets background task
+        self.bot.loop.create_task(self.auto_resolve_bets_loop())
         
     def _load_bets(self):
         """Load bets from the JSON file."""
@@ -306,6 +310,67 @@ class Betting(BaseCog):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @app_commands.command(name="sportsbet", description="Create a sports bet that will be auto-resolved")
+    @app_commands.describe(
+        match_description="Description of the sports match (e.g., Team A vs Team B on March 30)",
+        end_time="When the match ends (hours from now)",
+        option1="First betting option",
+        option2="Second betting option",
+        option3="Third betting option (optional)",
+        option4="Fourth betting option (optional)"
+    )
+    async def create_sports_bet(self, interaction: discord.Interaction, 
+                             match_description: str,
+                             end_time: int,
+                             option1: str,
+                             option2: str,
+                             option3: str = None,
+                             option4: str = None):
+        """Create a sports bet that will be automatically resolved."""
+        creator_id = interaction.user.id
+        
+        # Create options list
+        options = [option1, option2]
+        if option3:
+            options.append(option3)
+        if option4:
+            options.append(option4)
+            
+        # Generate a unique bet ID
+        bet_id = max(list(self.active_bets.keys()) + list(self.bet_results.keys()) + [-1]) + 1
+        
+        # Calculate end time
+        estimated_end_time = datetime.now() + timedelta(hours=end_time)
+        
+        # Create the bet
+        self.active_bets[bet_id] = {
+            'creator_id': creator_id,
+            'description': match_description,
+            'options': options,
+            'participants': {},
+            'status': 'open',
+            'created_at': datetime.now(),
+            'end_time': estimated_end_time,
+            'result': None,
+            'auto_resolve': True  # Flag for auto-resolution
+        }
+        
+        # Create the embed
+        embed = discord.Embed(
+            title="New Sports Betting Event!",
+            description=match_description,
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="Options", value="\n".join(options), inline=False)
+        embed.add_field(name="Bet ID", value=f"#{bet_id}", inline=True)
+        embed.add_field(name="Created by", value=interaction.user.mention, inline=True)
+        embed.add_field(name="Ends in", value=f"{end_time} hours", inline=True)
+        embed.add_field(name="Auto-resolve", value="Yes - Results will be determined automatically", inline=False)
+        
+        # Save the bet
+        self._save_bets()
+        await interaction.response.send_message(embed=embed)
+            
     @app_commands.command(name="cancelbet", description="Cancel your bet and get a refund (if bet is still open)")
     @app_commands.describe(bet_id="The ID of the bet to cancel")
     async def cancel_bet(self, interaction: discord.Interaction, bet_id: int):
@@ -390,20 +455,182 @@ class Betting(BaseCog):
             logging.error(f"Error in event analysis: {str(e)}")
             return None
 
+    async def auto_resolve_bets_loop(self):
+        """Background task that checks for bets that need to be resolved automatically."""
+        await self.bot.wait_until_ready()  # Wait until the bot is ready before starting the loop
+        
+        while not self.bot.is_closed():
+            try:
+                # Check for expired bets
+                now = datetime.now()
+                expired_bets = []
+                
+                for bet_id, bet in self.active_bets.items():
+                    # Only auto-resolve sports bets that have passed their end time
+                    if (bet['status'] == 'open' and 
+                        bet['end_time'] < now and 
+                        any(keyword in bet['description'].lower() for keyword in ['cricket', 'football', 'soccer', 'ipl', 'match', 'game', 'vs', 'versus'])):
+                        expired_bets.append((bet_id, bet))
+                
+                # Process expired bets
+                for bet_id, bet in expired_bets:
+                    try:
+                        # Query OpenAI to get the result
+                        result = await self.get_sports_match_result(bet['description'], bet['options'])
+                        
+                        if result:
+                            # Get notification channel
+                            notification_channel = None
+                            for guild in self.bot.guilds:
+                                channel = discord.utils.get(guild.text_channels, name="betting")
+                                if channel:
+                                    notification_channel = channel
+                                    break
+                            
+                            if not notification_channel:
+                                for guild in self.bot.guilds:
+                                    if guild.system_channel:
+                                        notification_channel = guild.system_channel
+                                        break
+                            
+                            # Resolve the bet
+                            total_pot = sum(p['amount'] for p in bet['participants'].values())
+                            winning_option = result['winning_option']
+                            
+                            # Check if winning option is in the bet options
+                            if winning_option not in bet['options']:
+                                # Find closest matching option
+                                similarities = [(option, self._calculate_similarity(option.lower(), winning_option.lower())) 
+                                              for option in bet['options']]
+                                winning_option = max(similarities, key=lambda x: x[1])[0]
+                            
+                            winning_bets = {uid: data for uid, data in bet['participants'].items() 
+                                           if data['option'] == winning_option}
+                            winning_total = sum(data['amount'] for data in winning_bets.values())
+                            
+                            if winning_total > 0:
+                                for user_id, data in winning_bets.items():
+                                    win_share = (data['amount'] / winning_total) * total_pot
+                                    self.db.add_money(user_id, int(win_share))
+                            
+                            bet['status'] = 'closed'
+                            bet['result'] = winning_option
+                            bet['resolved_at'] = now
+                            bet['auto_resolved'] = True
+                            bet['result_details'] = result['details']
+                            
+                            # Move to resolved bets
+                            self.bet_results[bet_id] = {
+                                'description': bet['description'],
+                                'options': bet['options'],
+                                'winner': winning_option,
+                                'total_pot': total_pot,
+                                'num_participants': len(bet['participants']),
+                                'num_winners': len(winning_bets),
+                                'created_at': bet['created_at'],
+                                'resolved_at': now,
+                                'auto_resolved': True,
+                                'result_details': result['details']
+                            }
+                            
+                            # Save changes
+                            self._save_bets()
+                            
+                            # Send notification if channel available
+                            if notification_channel:
+                                embed = discord.Embed(
+                                    title="Bet Auto-Resolved!",
+                                    description=bet['description'],
+                                    color=discord.Color.green()
+                                )
+                                embed.add_field(name="Winner", value=winning_option, inline=False)
+                                embed.add_field(name="Details", value=result['details'], inline=False)
+                                embed.add_field(name="Total Pot", value=f"${total_pot}", inline=True)
+                                embed.add_field(name="Number of Winners", value=str(len(winning_bets)), inline=True)
+                                
+                                await notification_channel.send(embed=embed)
+                            
+                            logging.info(f"Auto-resolved bet #{bet_id}: {bet['description']} with winner {winning_option}")
+                    
+                    except Exception as e:
+                        logging.error(f"Error auto-resolving bet #{bet_id}: {e}")
+                        
+            except Exception as e:
+                logging.error(f"Error in auto_resolve_bets_loop: {e}")
+            
+            # Run every 30 minutes
+            await asyncio.sleep(1800)
+    
+    def _calculate_similarity(self, str1, str2):
+        """Calculate basic similarity between two strings."""
+        if not str1 or not str2:
+            return 0
+            
+        # Convert to sets of words
+        set1 = set(str1.split())
+        set2 = set(str2.split())
+        
+        # Calculate Jaccard similarity
+        intersection = len(set1.intersection(set2))
+        union = len(set1.union(set2))
+        
+        return intersection / union if union > 0 else 0
+    
+    async def get_sports_match_result(self, match_description, options):
+        """Query OpenAI to get sports match results."""
+        try:
+            # Build the prompt
+            prompt = f"""
+            You are a virtual betting assistant that resolves sports bets automatically. 
+            
+            MATCH DESCRIPTION: {match_description}
+            
+            BETTING OPTIONS: {', '.join(options)}
+            
+            Based on the most recent data available, please determine:
+            1. The result of this match/event
+            2. Which of the betting options listed above is the winner
+            3. A brief explanation of how you determined the result
+            
+            Format your response as a JSON object with these fields:
+            - winning_option: The exact text of the winning betting option from the list provided
+            - details: A 1-2 sentence explanation of the match result and why this option won
+            """
+            
+            # Call OpenAI API
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o",  # the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+                messages=[
+                    {"role": "system", "content": "You are a virtual betting assistant that analyzes sports data and resolves bets."},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.3  # Lower temperature for more factual responses
+            )
+            
+            # Process the response
+            result_text = response.choices[0].message.content
+            try:
+                result = json.loads(result_text)
+                
+                # Validate the result
+                if 'winning_option' not in result or 'details' not in result:
+                    logging.error(f"Invalid response format from OpenAI: {result_text}")
+                    return None
+                    
+                return result
+                
+            except json.JSONDecodeError:
+                logging.error(f"Failed to parse JSON from OpenAI: {result_text}")
+                return None
+                
+        except Exception as e:
+            logging.error(f"Error getting sports match result: {e}")
+            return None
+
 async def setup(bot):
     cog = Betting(bot)
     await bot.add_cog(cog)
     
-    # Only sync the betting commands
-    try:
-        commands = await bot.tree.sync(guild=None)
-        for cmd in commands:
-            if cmd.name in ["createbet", "placebet", "activebets", "resolvebet", "mybet", "cancelbet", "pastbets"]:
-                logging.info(f"Registered command: {cmd.name}")
-    except discord.HTTPException as e:
-        if e.code == 429:
-            logging.warning("Rate limited, commands will sync after cooldown")
-        else:
-            logging.error(f"Failed to sync betting commands: {e}")
-    except Exception as e:
-        logging.error(f"Error registering commands: {e}")
+    # Don't sync commands here - it's already done in the bot.py on_ready event
+    logging.info("Betting cog loaded successfully")
