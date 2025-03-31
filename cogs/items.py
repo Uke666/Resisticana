@@ -20,37 +20,7 @@ class Items(BaseCog):
         super().__init__(bot)
         self.bot = bot
         
-        # Register commands
-        self.shop_prefix = commands.Command(self.shop_prefix, name="shop", 
-                                         help="Browse the item shop")
-        self.buy_prefix = commands.Command(self.buy_prefix, name="buy", 
-                                        help="Buy an item from the shop")
-        self.inventory_prefix = commands.Command(self.inventory_prefix, name="inventory", 
-                                              help="View your inventory")
-        self.use_prefix = commands.Command(self.use_prefix, name="use", 
-                                        help="Use an item from your inventory")
-        self.gift_prefix = commands.Command(self.gift_prefix, name="gift", 
-                                         help="Gift an item to another user")
-        self.additem_prefix = commands.Command(self.additem_prefix, name="additem", 
-                                           help="Add a new item to the shop (admin only)")
-        self.addcategory_prefix = commands.Command(self.addcategory_prefix, name="addcategory", 
-                                               help="Add a new item category (admin only)")
-        self.removeitem_prefix = commands.Command(self.removeitem_prefix, name="removeitem", 
-                                              help="Remove an item from the shop (admin only)")
-        self.investments_prefix = commands.Command(self.investments_prefix, name="investments", 
-                                               help="View your company investments")
-                                              
-        # Register commands to bot
-        self.bot.add_command(self.shop_prefix)
-        self.bot.add_command(self.buy_prefix)
-        self.bot.add_command(self.inventory_prefix)
-        self.bot.add_command(self.use_prefix)
-        self.bot.add_command(self.gift_prefix)
-        self.bot.add_command(self.additem_prefix)
-        self.bot.add_command(self.addcategory_prefix)
-        self.bot.add_command(self.removeitem_prefix)
-        self.bot.add_command(self.investments_prefix)
-        
+    @commands.command(name="shop", help="Browse the item shop")
     async def shop_prefix(self, ctx, category=None):
         """Browse the item shop with traditional prefix command."""
         if category:
@@ -232,6 +202,7 @@ class Items(BaseCog):
         embed.set_footer(text="Use /buy command to purchase an item.")
         await interaction.response.send_message(embed=embed)
     
+    @commands.command(name="buy", help="Buy an item from the shop")
     async def buy_prefix(self, ctx, item_id: int):
         """Buy an item from the shop with traditional prefix command."""
         await self.purchase_item(ctx, item_id)
@@ -470,6 +441,7 @@ class Items(BaseCog):
                 ephemeral=True
             )
     
+    @commands.command(name="inventory", help="View your inventory")
     async def inventory_prefix(self, ctx):
         """View your inventory with traditional prefix command."""
         await self.show_inventory(ctx)
@@ -608,6 +580,7 @@ class Items(BaseCog):
         embed.set_footer(text="Use /use command to use a consumable item.")
         await interaction.response.send_message(embed=embed)
     
+    @commands.command(name="use", help="Use an item from your inventory")
     async def use_prefix(self, ctx, item_id: int):
         """Use an item from your inventory with traditional prefix command."""
         await self.use_item(ctx, item_id)
@@ -1901,6 +1874,7 @@ class Items(BaseCog):
                 ephemeral=True
             )
 
+    @commands.command(name="investments", help="View your company investments")
     async def investments_prefix(self, ctx):
         """View your company investments."""
         guild_id = ctx.guild.id
