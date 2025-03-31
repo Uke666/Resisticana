@@ -55,44 +55,66 @@ class Betting(BaseCog):
         await ctx.send(embed=embed)
 
     async def analyze_event(self, description):
-        """Analyze event description using AI to extract betting options and details."""
+        """Analyze event description to generate smart betting options."""
         try:
-            prompt = f"""Analyze this betting event: "{description}"
+            # Basic sports event detection
+            sports_keywords = {
+                'cricket': ['win by runs', 'win by wickets', 'match tied'],
+                'football': ['win by goals', 'draw', 'clean sheet'],
+                'ipl': ['win by runs', 'win by wickets', 'super over'],
+                'match': ['home win', 'away win', 'draw']
+            }
             
-            Extract the following information:
-            1. All possible outcomes/betting options (be specific, not just win/lose)
-            2. Estimated event end time
-            3. Event type (sports/politics/entertainment/other)
-            4. Additional relevant betting options based on the event
-
-            Format the response as JSON with:
-            - options: list of possible outcomes
-            - estimated_end_time: ISO date string
-            - event_type: string
-            - description: detailed event description"""
-
-            response = await self.openai_client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"}
-            )
-
-            result = json.loads(response.choices[0].message.content)
+            desc_lower = description.lower()
+            options = []
             
-            # Convert string date to datetime
-            result['estimated_end_time'] = datetime.fromisoformat(result['estimated_end_time'])
+            # Check for IPL specific match
+            if 'ipl' in desc_lower:
+                teams = []
+                for team in ['mumbai', 'chennai', 'bangalore', 'kolkata', 'delhi', 'punjab', 'rajasthan', 'hyderabad']:
+                    if team in desc_lower:
+                        teams.append(team.title())
+                
+                if len(teams) >= 2:
+                    options.extend([
+                        f"{teams[0]} wins by 20+ runs",
+                        f"{teams[0]} wins by <20 runs",
+                        f"{teams[1]} wins by 20+ runs",
+                        f"{teams[1]} wins by <20 runs",
+                        "Match goes to Super Over"
+                    ])
             
-            # Ensure we have at least 2 options
-            if len(result['options']) < 2:
-                result['options'] = ["Win", "Lose"]
-
-            return result
+            # If no specific options were generated, try generic sports options
+            if not options:
+                for sport, outcomes in sports_keywords.items():
+                    if sport in desc_lower:
+                        options.extend(outcomes)
+                        break
+            
+            # If still no options, use event-specific smart defaults
+            if not options:
+                if 'election' in desc_lower:
+                    options = ['Candidate A wins', 'Candidate B wins', 'Too close to call']
+                elif 'weather' in desc_lower:
+                    options = ['Sunny', 'Rainy', 'Cloudy', 'Mixed conditions']
+                elif 'game' in desc_lower:
+                    options = ['Player 1 wins', 'Player 2 wins', 'Draw']
+            
+            # Final fallback to custom win/lose if nothing else matches
+            if not options:
+                options = ["Decisive Victory", "Close Win", "Draw/Tie", "No Result"]
+            
+            return {
+                'options': options,
+                'estimated_end_time': datetime.now() + timedelta(hours=24),
+                'event_type': 'sports' if any(k in desc_lower for k in sports_keywords) else 'general',
+                'description': description
+            }
 
         except Exception as e:
-            logging.error(f"Error in AI analysis: {str(e)}")
-            # Fallback to basic options
+            logging.error(f"Error in event analysis: {str(e)}")
             return {
-                'options': ["Win", "Lose"],
+                'options': ["Victory", "Defeat", "Draw", "No Result"],
                 'estimated_end_time': datetime.now() + timedelta(hours=24),
                 'event_type': 'general',
                 'description': description
