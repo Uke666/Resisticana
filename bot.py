@@ -33,10 +33,13 @@ async def on_ready():
     # Sync slash commands with Discord
     try:
         logging.info("Syncing slash commands...")
-        await bot.tree.sync()
-        logging.info("Slash commands synced successfully!")
-    except Exception as e:
-        logging.error(f"Failed to sync slash commands: {e}")
+        commands = await bot.tree.sync()
+        logging.info(f"Successfully synced {len(commands)} slash commands!")
+    except discord.HTTPException as e:
+        if e.code == 429:  # Rate limit error
+            logging.warning("Rate limited while syncing commands. Commands will be available after a few minutes.")
+        else:
+            logging.error(f"Failed to sync slash commands: {e}")
 
     # Set bot status
     await bot.change_presence(activity=discord.Game(name=f"{PREFIX}help or /help"))

@@ -268,5 +268,13 @@ class Betting(BaseCog):
             return None
 
 async def setup(bot):
-    await bot.add_cog(Betting(bot))
-    logging.info("Successfully registered betting commands")
+    cog = Betting(bot)
+    await bot.add_cog(cog)
+    try:
+        await bot.tree.sync()
+        logging.info("Successfully registered betting commands")
+    except discord.HTTPException as e:
+        if e.code == 429:  # Rate limit error
+            logging.warning(f"Rate limited while syncing commands. Please wait a few minutes and try again.")
+        else:
+            logging.error(f"Failed to sync betting commands: {e}")
