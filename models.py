@@ -1,6 +1,7 @@
 from app import db
 from flask_login import UserMixin
 from datetime import datetime
+import json
 
 
 class User(UserMixin, db.Model):
@@ -16,7 +17,8 @@ class User(UserMixin, db.Model):
     discord_username = db.Column(db.String(100))
     
     # Relationships
-    transactions = db.relationship('Transaction', backref='user', lazy='dynamic')
+    transactions = db.relationship('Transaction', backref='user', lazy='dynamic', foreign_keys='Transaction.user_id')
+    inventory_items = db.relationship('InventoryItem', backref='user', lazy='dynamic', foreign_keys='InventoryItem.user_id')
 
 
 class Guild(db.Model):
@@ -107,7 +109,7 @@ class Bet(db.Model):
     
     # Relationships
     guild = db.relationship('Guild')
-    creator = db.relationship('User')
+    creator = db.relationship('User', foreign_keys=[creator_id])
     placed_bets = db.relationship('PlacedBet', backref='event', lazy='dynamic')
 
 
@@ -120,7 +122,7 @@ class PlacedBet(db.Model):
     placed_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
-    user = db.relationship('User')
+    user = db.relationship('User', foreign_keys=[user_id])
 
 
 class TimeoutLog(db.Model):
@@ -151,5 +153,76 @@ class ActiveQuest(db.Model):
     completed = db.Column(db.Boolean, default=False)
     
     # Relationships
-    user = db.relationship('User')
+    user = db.relationship('User', foreign_keys=[user_id])
     guild = db.relationship('Guild')
+
+
+class ItemCategory(db.Model):
+    """Categories for items in the shop."""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False, unique=True)
+    description = db.Column(db.String(200))
+    
+    # Relationships
+    items = db.relationship('Item', backref='category', lazy='dynamic')
+
+
+class Item(db.Model):
+    """Items that can be purchased in the shop."""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    price = db.Column(db.Integer, nullable=False)
+    image_url = db.Column(db.String(256))
+    category_id = db.Column(db.Integer, db.ForeignKey('item_category.id'), nullable=False)
+    
+    # Item properties stored as JSON
+    properties = db.Column(db.Text)  # JSON string for custom properties
+    is_role_reward = db.Column(db.Boolean, default=False)  # Does item grant a role?
+    role_id = db.Column(db.String(32))  # Discord role ID if applicable
+    
+    is_consumable = db.Column(db.Boolean, default=False)  # Can be used/consumed
+    is_tradeable = db.Column(db.Boolean, default=True)  # Can be traded with other users
+    is_limited = db.Column(db.Boolean, default=False)  # Limited availability
+    quantity_available = db.Column(db.Integer, nullable=True)  # For limited items
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    inventory_items = db.relationship('InventoryItem', backref='item_type', lazy='dynamic')
+    
+    def get_properties(self):
+        """Get item properties as a dictionary."""
+        if self.properties:
+            return json.loads(self.properties)
+        return {}
+    
+    def set_properties(self, props_dict):
+        """Set item properties from a dictionary."""
+        self.properties = json.dumps(props_dict)
+
+
+class InventoryItem(db.Model):
+    """Items owned by users."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    item_id = db.Column(db.Integer, db.ForeignKey('item.id'), nullable=False)
+    quantity = db.Column(db.Integer, default=1, nullable=False)
+    
+    # Item instance properties stored as JSON (allows for unique properties per instance)
+    instance_properties = db.Column(db.Text)  # JSON string for custom properties
+    
+    acquired_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_used_at = db.Column(db.DateTime, nullable=True)
+    
+    guild_id = db.Column(db.Integer, db.ForeignKey('guild.id'), nullable=False)  # Guild where item was purchased
+    
+    def get_instance_properties(self):
+        """Get item instance properties as a dictionary."""
+        if self.instance_properties:
+            return json.loads(self.instance_properties)
+        return {}
+    
+    def set_instance_properties(self, props_dict):
+        """Set item instance properties from a dictionary."""
+        self.instance_properties = json.dumps(props_dict)

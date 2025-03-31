@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Inventory - Discord Economy Bot</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo" onerror="this.style.display='none'">Discord Economy Bot</h1>
+            <nav>
+                <ul>
+                    <li><a href="{{ url_for('home') }}">Home</a></li>
+                    <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                    <li><a href="{{ url_for('guilds') }}">Guilds</a></li>
+                </ul>
+            </nav>
+        </header>
+
+        <main>
+            <section class="card">
+                <div class="card-header">
+                    <h2>{{ user.username }}'s Inventory</h2>
+                </div>
+                <div class="card-body">
+                    {% if items %}
+                        <div class="categories">
+                            {% for category, category_items in items_by_category.items() %}
+                                <div class="category">
+                                    <h3>{{ category }}</h3>
+                                    <div class="items-grid">
+                                        {% for item in category_items %}
+                                            <div class="item-card">
+                                                {% if item.image_url %}
+                                                    <img src="{{ item.image_url }}" alt="{{ item.name }}" class="item-image">
+                                                {% else %}
+                                                    <div class="item-placeholder">{{ item.name[0] }}</div>
+                                                {% endif %}
+                                                <div class="item-details">
+                                                    <h4>{{ item.name }}</h4>
+                                                    <p class="item-quantity">Quantity: {{ item.quantity }}</p>
+                                                    <p class="item-desc">{{ item.description }}</p>
+                                                    
+                                                    {% if item.properties %}
+                                                        <div class="item-props">
+                                                            {% if item.is_consumable %}
+                                                                <span class="tag consumable">Consumable</span>
+                                                            {% endif %}
+                                                            {% if not item.is_tradeable %}
+                                                                <span class="tag untradeable">Not Tradeable</span>
+                                                            {% endif %}
+                                                            {% if item.is_role_reward %}
+                                                                <span class="tag role">Grants Role</span>
+                                                            {% endif %}
+                                                        </div>
+                                                    {% endif %}
+                                                    
+                                                    <p class="item-acquired">Acquired: {{ item.acquired_at.strftime('%Y-%m-%d') }}</p>
+                                                    
+                                                    {% if item.is_consumable %}
+                                                        <p class="item-action"><a href="#" class="btn-use" data-item-id="{{ item.id }}">Use</a></p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <p>You don't have any items in your inventory yet.</p>
+                            <p>Visit the shop to purchase items with your coins!</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 Discord Economy Bot - All rights reserved</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        // Handle item use button clicks
+        document.querySelectorAll('.btn-use').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const itemId = button.getAttribute('data-item-id');
+                if (confirm(`Are you sure you want to use this item?`)) {
+                    try {
+                        const response = await fetch(`/inventory/use/${itemId}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        const result = await response.json();
+                        if (result.success) {
+                            alert(result.message);
+                            // Reload the page to refresh inventory
+                            window.location.reload();
+                        } else {
+                            alert(`Error: ${result.message}`);
+                        }
+                    } catch (error) {
+                        alert('An error occurred while using the item.');
+                        console.error(error);
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

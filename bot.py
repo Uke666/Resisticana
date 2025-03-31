@@ -60,7 +60,7 @@ async def on_ready():
 
 async def load_extensions():
     """Load all cog extensions."""
-    for extension in ['cogs.economy', 'cogs.company', 'cogs.moderation', 'cogs.betting']:
+    for extension in ['cogs.economy', 'cogs.company', 'cogs.moderation', 'cogs.betting', 'cogs.items']:
         try:
             await bot.load_extension(extension)
             logging.info(f'Loaded extension: {extension}')
@@ -143,6 +143,11 @@ async def help_command(ctx, category=None):
             value=f"`{prefix}help bets` - AI-powered betting system",
             inline=False
         )
+        embed.add_field(
+            name="🎁 Items",
+            value=f"`{prefix}help items` - Shop and inventory system",
+            inline=False
+        )
 
     # Economy commands
     elif category.lower() == "economy":
@@ -207,6 +212,20 @@ async def help_command(ctx, category=None):
         embed.add_field(name=f"{prefix}help [category]", value="Display this help menu", inline=False)
         embed.add_field(name=f"{prefix}ping", value="Check the bot's response time", inline=False)
         embed.add_field(name=f"{prefix}info", value="Display information about the bot", inline=False)
+        
+    # Items commands
+    elif category.lower() == "items":
+        embed.title = "Items and Shop Commands"
+        embed.description = "Commands for browsing the shop and managing your inventory."
+        
+        embed.add_field(name=f"{prefix}shop [category]", value="Browse the item shop or specific category", inline=False)
+        embed.add_field(name=f"{prefix}buy <item_id>", value="Buy an item from the shop", inline=False)
+        embed.add_field(name=f"{prefix}inventory", value="View your inventory", inline=False)
+        embed.add_field(name=f"{prefix}use <item_id>", value="Use a consumable item from your inventory", inline=False)
+        embed.add_field(name=f"{prefix}gift <item_id> <quantity> <@user>", value="Gift an item to another user", inline=False)
+        embed.add_field(name=f"{prefix}additem <name> <price> <category> <description>", value="Admin only: Add a new item to the shop", inline=False)
+        embed.add_field(name=f"{prefix}addcategory <name> <description>", value="Admin only: Add a new item category", inline=False)
+        embed.add_field(name=f"{prefix}removeitem <item_id>", value="Admin only: Remove an item from the shop", inline=False)
 
     else:
         embed.title = "Unknown Category"
@@ -222,7 +241,8 @@ async def help_command(ctx, category=None):
     app_commands.Choice(name="Company", value="company"),
     app_commands.Choice(name="Moderation", value="moderation"),
     app_commands.Choice(name="General", value="general"),
-    app_commands.Choice(name="Bets", value="bets")
+    app_commands.Choice(name="Bets", value="bets"),
+    app_commands.Choice(name="Items", value="items")
 ])
 async def help_slash(interaction: discord.Interaction, category: str = None):
     ctx = await bot.get_context(interaction.message) if interaction.message else None
@@ -263,6 +283,11 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
         embed.add_field(
             name="🎲 Bets",
             value=f"`/help bets` - AI-powered betting system",
+            inline=False
+        )
+        embed.add_field(
+            name="🎁 Items",
+            value=f"`/help items` - Shop and inventory system",
             inline=False
         )
 
@@ -330,6 +355,20 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
         embed.add_field(name="/help [category]", value="Display this help menu", inline=False)
         embed.add_field(name="/ping", value="Check the bot's response time", inline=False)
         embed.add_field(name="/info", value="Display information about the bot", inline=False)
+        
+    # Items commands
+    elif category.lower() == "items":
+        embed.title = "Items and Shop Commands"
+        embed.description = "Commands for browsing the shop and managing your inventory."
+        
+        embed.add_field(name="/shop [category]", value="Browse the item shop or specific category", inline=False)
+        embed.add_field(name="/buy item_id:<id>", value="Buy an item from the shop", inline=False)
+        embed.add_field(name="/inventory", value="View your inventory", inline=False)
+        embed.add_field(name="/use item_id:<id>", value="Use a consumable item from your inventory", inline=False)
+        embed.add_field(name="/gift item_id:<id> quantity:<amount> target:<@user>", value="Gift an item to another user", inline=False)
+        embed.add_field(name="/additem name:<name> price:<amount> category:<cat> description:<desc>", value="Admin only: Add a new item to the shop", inline=False)
+        embed.add_field(name="/addcategory name:<name> description:<desc>", value="Admin only: Add a new item category", inline=False)
+        embed.add_field(name="/removeitem item_id:<id>", value="Admin only: Remove an item from the shop", inline=False)
 
     else:
         embed.title = "Unknown Category"
@@ -370,6 +409,8 @@ async def info(ctx):
 • Company creation and management
 • AI-generated quests for earning money
 • Role-based timeout system
+• Item shop and inventory system
+• AI-powered betting system
     """, inline=False)
 
     embed.set_footer(text=f"Made with ❤️ for Discord")
@@ -395,6 +436,8 @@ async def info_slash(interaction: discord.Interaction):
 • Company creation and management
 • AI-generated quests for earning money
 • Role-based timeout system
+• Item shop and inventory system
+• AI-powered betting system
     """, inline=False)
 
     embed.set_footer(text=f"Made with ❤️ for Discord")
