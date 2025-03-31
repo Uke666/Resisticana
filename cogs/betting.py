@@ -55,22 +55,48 @@ class Betting(BaseCog):
         await ctx.send(embed=embed)
 
     async def analyze_event(self, description):
-        """Analyze event description to extract options and end time."""
+        """Analyze event description using AI to extract betting options and details."""
         try:
-            # Default to two options: Win/Lose
-            options = ["Win", "Lose"]
+            prompt = f"""Analyze this betting event: "{description}"
             
-            # Set end time to 24 hours from now
-            end_time = datetime.now() + timedelta(hours=24)
+            Extract the following information:
+            1. All possible outcomes/betting options (be specific, not just win/lose)
+            2. Estimated event end time
+            3. Event type (sports/politics/entertainment/other)
+            4. Additional relevant betting options based on the event
+
+            Format the response as JSON with:
+            - options: list of possible outcomes
+            - estimated_end_time: ISO date string
+            - event_type: string
+            - description: detailed event description"""
+
+            response = await self.openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"}
+            )
+
+            result = json.loads(response.choices[0].message.content)
             
-            return {
-                'options': options,
-                'estimated_end_time': end_time,
-                'event_type': 'sports'
-            }
+            # Convert string date to datetime
+            result['estimated_end_time'] = datetime.fromisoformat(result['estimated_end_time'])
+            
+            # Ensure we have at least 2 options
+            if len(result['options']) < 2:
+                result['options'] = ["Win", "Lose"]
+
+            return result
+
         except Exception as e:
-            logging.error(f"Error in analysis: {str(e)}")
-            return None
+            logging.error(f"Error in AI analysis: {str(e)}")
+            # Fallback to basic options
+            return {
+                'options': ["Win", "Lose"],
+                'estimated_end_time': datetime.now() + timedelta(hours=24),
+                'event_type': 'general',
+                'description': description
+            }
 
     @commands.command(name="placebet")
     async def place_bet(self, ctx, bet_id: int, amount: int, *, choice: str):
