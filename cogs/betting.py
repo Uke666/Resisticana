@@ -270,11 +270,17 @@ class Betting(BaseCog):
 async def setup(bot):
     cog = Betting(bot)
     await bot.add_cog(cog)
+    
+    # Only sync the betting commands
     try:
-        await bot.tree.sync()
-        logging.info("Successfully registered betting commands")
+        commands = await bot.tree.sync(guild=None)
+        for cmd in commands:
+            if cmd.name in ["createbet", "placebet", "activebets", "resolvebet", "mybet", "cancelbet"]:
+                logging.info(f"Registered command: {cmd.name}")
     except discord.HTTPException as e:
-        if e.code == 429:  # Rate limit error
-            logging.warning(f"Rate limited while syncing commands. Please wait a few minutes and try again.")
+        if e.code == 429:
+            logging.warning("Rate limited, commands will sync after cooldown")
         else:
             logging.error(f"Failed to sync betting commands: {e}")
+    except Exception as e:
+        logging.error(f"Error registering commands: {e}")
