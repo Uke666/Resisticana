@@ -87,6 +87,44 @@ class Betting(BaseCog):
         except Exception as e:
             logging.error(f"Error saving bets data: {e}")
 
+    @commands.command(name="createbet")
+    async def createbet_prefix(self, ctx, *, event_description: str):
+        """Create a new betting event with AI-generated options."""
+        creator_id = ctx.author.id
+
+        # Analyze event using AI
+        event_info = await self.analyze_event(event_description)
+        if not event_info:
+            await ctx.send("Could not analyze the event. Please be more specific!")
+            return
+
+        # Generate a unique bet ID by finding the highest ID and adding 1
+        bet_id = max(list(self.active_bets.keys()) + list(self.bet_results.keys()) + [-1]) + 1
+        self.active_bets[bet_id] = {
+            'creator_id': creator_id,
+            'description': event_description,
+            'options': event_info['options'],
+            'participants': {},
+            'status': 'open',
+            'created_at': datetime.now(),
+            'end_time': event_info['estimated_end_time'],
+            'result': None
+        }
+
+        embed = discord.Embed(
+            title="New Betting Event!",
+            description=event_description,
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="Options", value="\n".join(event_info['options']), inline=False)
+        embed.add_field(name="Bet ID", value=f"#{bet_id}", inline=True)
+        embed.add_field(name="Created by", value=ctx.author.mention, inline=True)
+        embed.add_field(name="Estimated End", value=event_info['estimated_end_time'].strftime("%Y-%m-%d %H:%M UTC"), inline=False)
+
+        # Save the bet
+        self._save_bets()
+        await ctx.send(embed=embed)
+
     @app_commands.command(name="createbet", description="Create a new betting event")
     @app_commands.describe(event_description="Description of the betting event")
     async def create_bet(self, interaction: discord.Interaction, event_description: str):
@@ -126,6 +164,39 @@ class Betting(BaseCog):
         self._save_bets()
         await interaction.response.send_message(embed=embed)
 
+    @commands.command(name="placebet")
+    async def placebet_prefix(self, ctx, bet_id: int, choice: str, amount: int):
+        """Place a bet on an event."""
+        if bet_id not in self.active_bets:
+            await ctx.send("Bet not found!")
+            return
+
+        bet = self.active_bets[bet_id]
+        if bet['status'] != 'open':
+            await ctx.send("This bet is no longer accepting entries!")
+            return
+
+        if choice not in bet['options']:
+            await ctx.send(f"Invalid choice! Options are: {', '.join(bet['options'])}")
+            return
+
+        user_id = ctx.author.id
+        user_data = self.db.get_or_create_user(user_id)
+        if user_data['wallet'] < amount:
+            await ctx.send("You don't have enough money in your wallet!")
+            return
+
+        self.db.remove_money(user_id, amount)
+        bet['participants'][user_id] = {
+            'option': choice,
+            'amount': amount,
+            'placed_at': datetime.now()
+        }
+        
+        # Save the changes
+        self._save_bets()
+        await ctx.send(f"Bet placed! You bet ${amount} on {choice}")
+
     @app_commands.command(name="placebet", description="Place a bet on an event")
     @app_commands.describe(
         bet_id="The ID of the bet",
@@ -163,6 +234,32 @@ class Betting(BaseCog):
         self._save_bets()
         await interaction.response.send_message(f"Bet placed! You bet ${amount} on {choice}")
 
+    @commands.command(name="activebets")
+    async def activebets_prefix(self, ctx):
+        """View all active betting events."""
+        active_bets = {bid: bet for bid, bet in self.active_bets.items() if bet['status'] == 'open'}
+
+        if not active_bets:
+            await ctx.send("No active bets!")
+            return
+
+        embed = discord.Embed(
+            title="Active Betting Events",
+            color=discord.Color.blue()
+        )
+
+        for bid, bet in active_bets.items():
+            embed.add_field(
+                name=f"Bet #{bid}",
+                value=f"Description: {bet['description']}\n"
+                      f"Options: {', '.join(bet['options'])}\n"
+                      f"Total Pot: ${sum(p['amount'] for p in bet['participants'].values())}\n"
+                      f"Ends: {bet['end_time'].strftime('%Y-%m-%d %H:%M UTC')}",
+                inline=False
+            )
+
+        await ctx.send(embed=embed)
+
     @app_commands.command(name="activebets", description="View all active betting events")
     async def view_active_bets(self, interaction: discord.Interaction):
         active_bets = {bid: bet for bid, bet in self.active_bets.items() if bet['status'] == 'open'}
@@ -188,6 +285,44 @@ class Betting(BaseCog):
 
         await interaction.response.send_message(embed=embed)
         
+    @commands.command(name="pastbets")
+    async def pastbets_prefix(self, ctx, limit: int = 5):
+        """View past resolved betting events."""
+        if not self.bet_results:
+            await ctx.send("No past bets found!")
+            return
+            
+        embed = discord.Embed(
+            title="Past Betting Events",
+            description="Recently resolved bets",
+            color=discord.Color.gold()
+        )
+        
+        # Sort by resolved_at time, newest first
+        sorted_bets = sorted(
+            self.bet_results.items(), 
+            key=lambda x: x[1].get('resolved_at', datetime.now()), 
+            reverse=True
+        )
+        
+        # Take only the requested number
+        for bid, bet in sorted_bets[:limit]:
+            resolved_time = bet.get('resolved_at', 'Unknown')
+            if isinstance(resolved_time, datetime):
+                resolved_time = resolved_time.strftime('%Y-%m-%d %H:%M UTC')
+                
+            embed.add_field(
+                name=f"Bet #{bid}",
+                value=f"**Description:** {bet['description']}\n"
+                      f"**Winner:** {bet['winner']}\n"
+                      f"**Total Pot:** ${bet['total_pot']}\n"
+                      f"**Participants:** {bet['num_participants']}\n"
+                      f"**Resolved:** {resolved_time}",
+                inline=False
+            )
+            
+        await ctx.send(embed=embed)
+
     @app_commands.command(name="pastbets", description="View past resolved betting events")
     async def view_past_bets(self, interaction: discord.Interaction, limit: int = 5):
         """View past betting events that have been resolved."""
@@ -225,6 +360,62 @@ class Betting(BaseCog):
             )
             
         await interaction.response.send_message(embed=embed)
+
+    @commands.command(name="resolvebet")
+    @commands.has_permissions(administrator=True)
+    async def resolvebet_prefix(self, ctx, bet_id: int, winner: str):
+        """Resolve a bet and distribute winnings (admin only)."""
+        if bet_id not in self.active_bets:
+            await ctx.send("Bet not found!")
+            return
+
+        bet = self.active_bets[bet_id]
+        if bet['status'] != 'open':
+            await ctx.send("This bet has already been resolved!")
+            return
+
+        if winner not in bet['options']:
+            await ctx.send(f"Invalid winner! Options were: {', '.join(bet['options'])}")
+            return
+
+        total_pot = sum(p['amount'] for p in bet['participants'].values())
+        winning_bets = {uid: data for uid, data in bet['participants'].items() if data['option'] == winner}
+        winning_total = sum(data['amount'] for data in winning_bets.values())
+
+        if winning_total > 0:
+            for user_id, data in winning_bets.items():
+                win_share = (data['amount'] / winning_total) * total_pot
+                self.db.add_money(user_id, int(win_share))
+
+        bet['status'] = 'closed'
+        bet['result'] = winner
+        bet['resolved_at'] = datetime.now()
+        
+        # Move the bet to the resolved bets dict
+        self.bet_results[bet_id] = {
+            'description': bet['description'],
+            'options': bet['options'],
+            'winner': winner,
+            'total_pot': total_pot,
+            'num_participants': len(bet['participants']),
+            'num_winners': len(winning_bets),
+            'created_at': bet['created_at'],
+            'resolved_at': datetime.now()
+        }
+        
+        # Save the changes
+        self._save_bets()
+
+        embed = discord.Embed(
+            title="Bet Resolved!",
+            description=bet['description'],
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Winner", value=winner, inline=False)
+        embed.add_field(name="Total Pot", value=f"${total_pot}", inline=True)
+        embed.add_field(name="Number of Winners", value=str(len(winning_bets)), inline=True)
+
+        await ctx.send(embed=embed)
 
     @app_commands.command(name="resolvebet", description="Resolve a bet and distribute winnings")
     @app_commands.describe(
@@ -285,6 +476,32 @@ class Betting(BaseCog):
 
         await interaction.response.send_message(embed=embed)
 
+    @commands.command(name="mybet")
+    async def mybet_prefix(self, ctx, bet_id: int):
+        """View your active bet on an event."""
+        if bet_id not in self.active_bets:
+            await ctx.send("Bet not found!")
+            return
+
+        bet = self.active_bets[bet_id]
+        user_id = ctx.author.id
+
+        if user_id not in bet['participants']:
+            await ctx.send("You haven't placed a bet on this event!")
+            return
+
+        user_bet = bet['participants'][user_id]
+        embed = discord.Embed(
+            title="Your Bet Details",
+            description=bet['description'],
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="Your Choice", value=user_bet['option'], inline=True)
+        embed.add_field(name="Amount Bet", value=f"${user_bet['amount']}", inline=True)
+        embed.add_field(name="Placed At", value=user_bet['placed_at'].strftime("%Y-%m-%d %H:%M UTC"), inline=True)
+
+        await ctx.send(embed=embed)
+
     @app_commands.command(name="mybet", description="View your active bet on an event")
     @app_commands.describe(bet_id="The ID of the bet")
     async def view_my_bet(self, interaction: discord.Interaction, bet_id: int):
@@ -310,6 +527,67 @@ class Betting(BaseCog):
         embed.add_field(name="Placed At", value=user_bet['placed_at'].strftime("%Y-%m-%d %H:%M UTC"), inline=True)
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @commands.command(name="sportsbet")
+    async def sportsbet_prefix(self, ctx, end_time: int, option1: str, option2: str, *, match_description: str):
+        """Create a sports bet that will be auto-resolved.
+        Usage: !sportsbet <hours_until_end> <option1> <option2> <match description>
+        """
+        creator_id = ctx.author.id
+        
+        # Create options list
+        options = [option1, option2]
+            
+        # Generate a unique bet ID
+        bet_id = max(list(self.active_bets.keys()) + list(self.bet_results.keys()) + [-1]) + 1
+        
+        # Calculate end time
+        estimated_end_time = datetime.now() + timedelta(hours=end_time)
+        
+        # Create the bet
+        self.active_bets[bet_id] = {
+            'creator_id': creator_id,
+            'description': match_description,
+            'options': options,
+            'participants': {},
+            'status': 'open',
+            'created_at': datetime.now(),
+            'end_time': estimated_end_time,
+            'result': None,
+            'auto_resolve': True  # Flag for auto-resolution
+        }
+        
+        # Create the embed
+        embed = discord.Embed(
+            title="🏆 New Sports Betting Event!",
+            description=match_description,
+            color=discord.Color.blue()
+        )
+        
+        # Format the options with emojis
+        option_emojis = ["🥇", "🥈"]
+        formatted_options = []
+        for i, option in enumerate(options):
+            emoji = option_emojis[i] if i < len(option_emojis) else "•"
+            formatted_options.append(f"{emoji} **{option}**")
+            
+        embed.add_field(name="Betting Options", value="\n".join(formatted_options), inline=False)
+        embed.add_field(name="📊 Bet ID", value=f"#{bet_id}", inline=True)
+        embed.add_field(name="👤 Created by", value=ctx.author.mention, inline=True)
+        embed.add_field(name="⏱️ Ends in", value=f"{end_time} hours", inline=True)
+        
+        # Calculate and show end time
+        end_datetime = estimated_end_time.strftime("%Y-%m-%d %H:%M UTC")
+        embed.add_field(name="🕒 End Time", value=end_datetime, inline=True)
+        
+        embed.add_field(name="🤖 Auto-resolve", value="Yes - Results will be determined automatically", inline=False)
+        embed.add_field(name="How to bet", value=f"Use `!placebet {bet_id} <option> <amount>`", inline=False)
+        
+        embed.set_footer(text="Sports bets are automatically resolved after their end time • AI-powered betting system")
+        
+        # Save the bet
+        self._save_bets()
+        await ctx.send(embed=embed)
 
     @app_commands.command(name="sportsbet", description="Create a sports bet that will be auto-resolved")
     @app_commands.describe(
@@ -388,6 +666,34 @@ class Betting(BaseCog):
         self._save_bets()
         await interaction.response.send_message(embed=embed)
             
+    @commands.command(name="cancelbet")
+    async def cancelbet_prefix(self, ctx, bet_id: int):
+        """Cancel your bet and get a refund (if bet is still open)."""
+        if bet_id not in self.active_bets:
+            await ctx.send("Bet not found!")
+            return
+
+        bet = self.active_bets[bet_id]
+        user_id = ctx.author.id
+
+        if bet['status'] != 'open':
+            await ctx.send("This bet is no longer open for cancellation!")
+            return
+
+        if user_id not in bet['participants']:
+            await ctx.send("You haven't placed a bet on this event!")
+            return
+
+        # Refund the bet amount
+        refund_amount = bet['participants'][user_id]['amount']
+        self.db.add_money(user_id, refund_amount)
+        del bet['participants'][user_id]
+        
+        # Save the changes
+        self._save_bets()
+
+        await ctx.send(f"Your bet has been cancelled and ${refund_amount} has been refunded to your wallet.")
+
     @app_commands.command(name="cancelbet", description="Cancel your bet and get a refund (if bet is still open)")
     @app_commands.describe(bet_id="The ID of the bet to cancel")
     async def cancel_bet(self, interaction: discord.Interaction, bet_id: int):
