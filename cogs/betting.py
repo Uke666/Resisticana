@@ -165,8 +165,11 @@ class Betting(BaseCog):
         await interaction.response.send_message(embed=embed)
 
     @commands.command(name="placebet")
-    async def placebet_prefix(self, ctx, bet_id_str, choice: str, amount: int):
-        """Place a bet on an event."""
+    async def placebet_prefix(self, ctx, bet_id_str, *args):
+        """Place a bet on an event.
+        Usage: !placebet <bet_id> <choice> <amount>
+        Example: !placebet #1 "Team A" 100
+        """
         # Handle bet_id that might be formatted as #123
         try:
             if bet_id_str.startswith('#'):
@@ -175,6 +178,19 @@ class Betting(BaseCog):
                 bet_id = int(bet_id_str)
         except ValueError:
             await ctx.send("Invalid bet ID! Please provide a number.")
+            return
+            
+        # We need at least two more arguments (choice and amount)
+        if len(args) < 2:
+            await ctx.send("Not enough arguments! Usage: `!placebet <bet_id> <choice> <amount>`")
+            return
+            
+        # Assume the last argument is the amount and everything else is the choice
+        try:
+            amount = int(args[-1])
+            choice = ' '.join(args[:-1])
+        except ValueError:
+            await ctx.send("Invalid amount! The amount must be a number.")
             return
             
         if bet_id not in self.active_bets:
@@ -373,8 +389,11 @@ class Betting(BaseCog):
 
     @commands.command(name="resolvebet")
     @commands.has_permissions(administrator=True)
-    async def resolvebet_prefix(self, ctx, bet_id_str, winner: str):
-        """Resolve a bet and distribute winnings (admin only)."""
+    async def resolvebet_prefix(self, ctx, bet_id_str, *, winner: str):
+        """Resolve a bet and distribute winnings (admin only).
+        Usage: !resolvebet <bet_id> <winner>
+        Example: !resolvebet #1 "Team A"
+        """
         # Handle bet_id that might be formatted as #123
         try:
             if bet_id_str.startswith('#'):
