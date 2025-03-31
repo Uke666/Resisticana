@@ -148,6 +148,11 @@ async def help_command(ctx, category=None):
             value=f"`{prefix}help items` - Shop and inventory system",
             inline=False
         )
+        embed.add_field(
+            name="📈 Events",
+            value=f"`{prefix}help events` - Economic events affecting the economy",
+            inline=False
+        )
 
     # Economy commands
     elif category.lower() == "economy":
@@ -226,7 +231,17 @@ async def help_command(ctx, category=None):
         embed.add_field(name=f"{prefix}additem <name> <price> <category> <description>", value="Admin only: Add a new item to the shop", inline=False)
         embed.add_field(name=f"{prefix}addcategory <name> <description>", value="Admin only: Add a new item category", inline=False)
         embed.add_field(name=f"{prefix}removeitem <item_id>", value="Admin only: Remove an item from the shop", inline=False)
-
+    
+    # Events commands
+    elif category.lower() == "events":
+        embed.title = "Economic Events Commands"
+        embed.description = "Commands for interacting with dynamic economic events."
+        
+        embed.add_field(name=f"{prefix}events", value="View current active economic events", inline=False)
+        embed.add_field(name=f"{prefix}event_info <event_id>", value="Get details about a specific economic event", inline=False)
+        embed.add_field(name=f"{prefix}generate_event", value="Admin only: Force generate a new economic event", inline=False)
+        embed.add_field(name=f"{prefix}end_event <event_id>", value="Admin only: End an active economic event", inline=False)
+        
     else:
         embed.title = "Unknown Category"
         embed.description = f"Category '{category}' not found. Use `{prefix}help` to see available categories."
@@ -242,7 +257,8 @@ async def help_command(ctx, category=None):
     app_commands.Choice(name="Moderation", value="moderation"),
     app_commands.Choice(name="General", value="general"),
     app_commands.Choice(name="Bets", value="bets"),
-    app_commands.Choice(name="Items", value="items")
+    app_commands.Choice(name="Items", value="items"),
+    app_commands.Choice(name="Events", value="events")
 ])
 async def help_slash(interaction: discord.Interaction, category: str = None):
     ctx = await bot.get_context(interaction.message) if interaction.message else None
@@ -290,7 +306,11 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
             value=f"`/help items` - Shop and inventory system",
             inline=False
         )
-
+        embed.add_field(
+            name="📈 Events",
+            value=f"`/help events` - Economic events affecting the economy",
+            inline=False
+        )
 
     # Economy commands
     elif category.lower() == "economy":
@@ -369,6 +389,16 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
         embed.add_field(name="/additem name:<name> price:<amount> category:<cat> description:<desc>", value="Admin only: Add a new item to the shop", inline=False)
         embed.add_field(name="/addcategory name:<name> description:<desc>", value="Admin only: Add a new item category", inline=False)
         embed.add_field(name="/removeitem item_id:<id>", value="Admin only: Remove an item from the shop", inline=False)
+    
+    # Events commands
+    elif category.lower() == "events":
+        embed.title = "Economic Events Commands"
+        embed.description = "Commands for interacting with dynamic economic events."
+        
+        embed.add_field(name="/events", value="View current active economic events", inline=False)
+        embed.add_field(name="/event_info event_id:<id>", value="Get details about a specific economic event", inline=False)
+        embed.add_field(name="/generate_event", value="Admin only: Force generate a new economic event", inline=False)
+        embed.add_field(name="/end_event event_id:<id>", value="Admin only: End an active economic event", inline=False)
 
     else:
         embed.title = "Unknown Category"
@@ -411,6 +441,7 @@ async def info(ctx):
 • Role-based timeout system
 • Item shop and inventory system
 • AI-powered betting system
+• Dynamic economic events
     """, inline=False)
 
     embed.set_footer(text=f"Made with ❤️ for Discord")
@@ -437,6 +468,7 @@ async def info_slash(interaction: discord.Interaction):
 • AI-generated quests for earning money
 • Role-based timeout system
 • Item shop and inventory system
+• Dynamic economic events
 • AI-powered betting system
     """, inline=False)
 
