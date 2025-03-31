@@ -5,10 +5,12 @@ import asyncio
 import json
 import os
 import logging
-from datetime import datetime
+import random
+import sqlalchemy as sa
+from datetime import datetime, timedelta
 
 from cogs.base_cog import BaseCog
-from models import ItemCategory, Item, InventoryItem, Guild, User
+from models import ItemCategory, Item, InventoryItem, Guild, User, GuildMember, CompanyInvestment, Transaction
 from app import db
 
 class Items(BaseCog):
@@ -35,6 +37,8 @@ class Items(BaseCog):
                                                help="Add a new item category (admin only)")
         self.removeitem_prefix = commands.Command(self.removeitem_prefix, name="removeitem", 
                                               help="Remove an item from the shop (admin only)")
+        self.investments_prefix = commands.Command(self.investments_prefix, name="investments", 
+                                               help="View your company investments")
                                               
         # Register commands to bot
         self.bot.add_command(self.shop_prefix)
@@ -45,6 +49,7 @@ class Items(BaseCog):
         self.bot.add_command(self.additem_prefix)
         self.bot.add_command(self.addcategory_prefix)
         self.bot.add_command(self.removeitem_prefix)
+        self.bot.add_command(self.investments_prefix)
         
     async def shop_prefix(self, ctx, category=None):
         """Browse the item shop with traditional prefix command."""
@@ -656,7 +661,198 @@ class Items(BaseCog):
             effect_message = "You used " + item.name
             
             # Process different item types based on properties
-            if "effect_type" in properties:
+            from models import GuildMember, Transaction
+            guild_member = GuildMember.query.filter_by(user_id=db_user.id, guild_id=db_guild.id).first()
+            
+            if not guild_member:
+                await ctx.send(embed=self.error_embed("Could not find your economy profile."))
+                return
+                
+            # Handle Company Shares
+            if item.name == 'Company Shares':
+                from models import Company
+                # Get list of companies in guild
+                companies = Company.query.filter_by(guild_id=db_guild.id).all()
+                
+                if not companies:
+                    await ctx.send(embed=self.error_embed("There are no companies in this guild to invest in."))
+                    return
+                
+                # Create a selection message with companies
+                company_list = "\n".join([f"{i+1}. {company.name}" for i, company in enumerate(companies)])
+                
+                select_embed = self.create_embed(
+                    "Select a Company",
+                    f"Please select a company to invest in by replying with the number:\n\n{company_list}\n\nType 'cancel' to abort."
+                )
+                await ctx.send(embed=select_embed)
+                
+                # Wait for user response
+                try:
+                    def check(m):
+                        return m.author.id == ctx.author.id and m.channel.id == ctx.channel.id
+                        
+                    response = await self.bot.wait_for('message', check=check, timeout=60.0)
+                    
+                    # Check for cancel
+                    if response.content.lower() == 'cancel':
+                        await ctx.send(embed=self.info_embed("Investment Cancelled", "Investment cancelled."))
+                        return
+                    
+                    # Try to parse the selection
+                    try:
+                        selection = int(response.content.strip())
+                        if selection < 1 or selection > len(companies):
+                            await ctx.send(embed=self.error_embed(f"Invalid selection. Please choose a number between 1 and {len(companies)}."))
+                            return
+                        
+                        selected_company = companies[selection-1]
+                        
+                        # Get investment parameters
+                        passive_income_rate = properties.get('passive_income_rate', 0.05)
+                        duration_days = properties.get('duration_days', 30)
+                        
+                        # Create investment record in database
+                        from datetime import datetime, timedelta
+                        
+                        # Check if user already has shares in this company
+                        import sqlalchemy as sa
+                        with sa.create_engine(db.engine.url).connect() as conn:
+                            existing = conn.execute(sa.text(
+                                "SELECT * FROM company_investment WHERE investor_id = :investor_id AND company_id = :company_id"
+                            ), {"investor_id": guild_member.id, "company_id": selected_company.id}).fetchone()
+                            
+                            if existing:
+                                await ctx.send(embed=self.error_embed(f"You already own shares in {selected_company.name}."))
+                                return
+                            
+                            # Create new investment
+                            expires_at = datetime.utcnow() + timedelta(days=duration_days)
+                            conn.execute(sa.text(
+                                """
+                                INSERT INTO company_investment 
+                                (investor_id, company_id, amount_invested, percent_ownership, created_at, expires_at)
+                                VALUES (:investor_id, :company_id, :amount_invested, :percent, :created_at, :expires_at)
+                                """
+                            ), {
+                                "investor_id": guild_member.id,
+                                "company_id": selected_company.id,
+                                "amount_invested": item.price,
+                                "percent": passive_income_rate,
+                                "created_at": datetime.utcnow(),
+                                "expires_at": expires_at
+                            })
+                            conn.commit()
+                        
+                        effect_message += f" and invested in {selected_company.name}. You will earn {passive_income_rate*100}% of profits for {duration_days} days!"
+                        
+                    except ValueError:
+                        await ctx.send(embed=self.error_embed("Invalid selection. Please enter a number."))
+                        return
+                        
+                except asyncio.TimeoutError:
+                    await ctx.send(embed=self.error_embed("Investment timed out. Please try again."))
+                    return
+                
+            # Handle Loot Boxes
+            elif item.category.name == 'Loot Boxes':
+                min_reward = properties.get('min_reward', 100)
+                max_reward = properties.get('max_reward', 500)
+                import random
+                reward_amount = random.randint(min_reward, max_reward)
+                
+                # Add money to user's wallet
+                guild_member.wallet += reward_amount
+                effect_message += f" and received {reward_amount} coins!"
+                
+                # Add transaction record
+                transaction = Transaction(
+                    user_id=db_user.id,
+                    guild_id=db_guild.id,
+                    transaction_type="loot_box",
+                    amount=reward_amount,
+                    description=f"Opened {item.name}"
+                )
+                db.session.add(transaction)
+            
+            # Handle Double Daily
+            elif item.name == 'Double Daily':
+                # Store effect in user's instance properties
+                instance_props = inventory_item.get_instance_properties()
+                duration_days = properties.get('duration_days', 7)
+                
+                # Calculate expiration date
+                from datetime import datetime, timedelta
+                expiry_date = datetime.utcnow() + timedelta(days=duration_days)
+                
+                # Save to instance properties
+                instance_props['double_daily'] = True
+                instance_props['double_daily_expiry'] = expiry_date.isoformat()
+                inventory_item.set_instance_properties(instance_props)
+                
+                effect_message += f" and will receive double daily rewards for {duration_days} days!"
+            
+            # Handle Robbery Shield
+            elif item.name == 'Robbery Shield':
+                # Store effect in user's instance properties
+                instance_props = inventory_item.get_instance_properties()
+                duration_days = properties.get('duration_days', 3)
+                
+                # Calculate expiration date
+                from datetime import datetime, timedelta
+                expiry_date = datetime.utcnow() + timedelta(days=duration_days)
+                
+                # Save to instance properties
+                instance_props['robbery_shield'] = True
+                instance_props['robbery_shield_expiry'] = expiry_date.isoformat()
+                inventory_item.set_instance_properties(instance_props)
+                
+                effect_message += f" and are now protected from robbery for {duration_days} days!"
+            
+            # Handle Quest Skip Token
+            elif item.name == 'Quest Skip Token':
+                from models import ActiveQuest
+                # Find active quest
+                active_quest = ActiveQuest.query.filter_by(
+                    user_id=db_user.id,
+                    guild_id=db_guild.id,
+                    completed=False
+                ).first()
+                
+                if active_quest:
+                    # Mark quest as completed and give reward
+                    active_quest.completed = True
+                    guild_member.wallet += active_quest.reward
+                    
+                    # Add transaction for reward
+                    transaction = Transaction(
+                        user_id=db_user.id,
+                        guild_id=db_guild.id,
+                        transaction_type="quest_reward",
+                        amount=active_quest.reward,
+                        description=f"Quest completed (skipped): {active_quest.quest_title}"
+                    )
+                    db.session.add(transaction)
+                    
+                    effect_message += f" and skipped quest '{active_quest.quest_title}', earning {active_quest.reward} coins!"
+                else:
+                    effect_message += " but you don't have any active quests to skip!"
+            
+            # Handle Bet Insurance
+            elif item.name == 'Bet Insurance':
+                # Store effect in user's instance properties
+                instance_props = inventory_item.get_instance_properties()
+                refund_percent = properties.get('refund_percent', 75)
+                
+                # Set bet insurance
+                instance_props['bet_insurance'] = True
+                instance_props['refund_percent'] = refund_percent
+                inventory_item.set_instance_properties(instance_props)
+                
+                effect_message += f" and will receive {refund_percent}% back if you lose your next bet!"
+            
+            # Legacy items support
+            elif "effect_type" in properties:
                 effect_type = properties["effect_type"]
                 
                 # Economy boost items
@@ -664,24 +860,19 @@ class Items(BaseCog):
                     if "amount" in properties:
                         amount = int(properties["amount"])
                         
-                        # Find guild member record to access wallet
-                        from models import GuildMember
-                        guild_member = GuildMember.query.filter_by(user_id=db_user.id, guild_id=db_guild.id).first()
+                        # Add money to wallet
+                        guild_member.wallet += amount
+                        effect_message += f" and received {amount} coins!"
                         
-                        if guild_member:
-                            guild_member.wallet += amount
-                            effect_message += f" and received {amount} coins!"
-                            
-                            # Add transaction record
-                            from models import Transaction
-                            transaction = Transaction(
-                                user_id=db_user.id,
-                                guild_id=db_guild.id,
-                                transaction_type="item_use",
-                                amount=amount,
-                                description=f"Used {item.name}"
-                            )
-                            db.session.add(transaction)
+                        # Add transaction record
+                        transaction = Transaction(
+                            user_id=db_user.id,
+                            guild_id=db_guild.id,
+                            transaction_type="item_use",
+                            amount=amount,
+                            description=f"Used {item.name}"
+                        )
+                        db.session.add(transaction)
                 
                 # Role temp items
                 elif effect_type == "temp_role":
@@ -709,8 +900,6 @@ class Items(BaseCog):
                         except Exception as e:
                             logging.error(f"Error handling temporary role item: {e}")
                             effect_message += f", but there was an error applying the role effect."
-                
-                # Add more effect types as needed
             
             # Update inventory
             inventory_item.quantity -= 1
@@ -786,7 +975,243 @@ class Items(BaseCog):
             effect_message = "You used " + item.name
             
             # Process different item types based on properties
-            if "effect_type" in properties:
+            from models import GuildMember, Transaction
+            guild_member = GuildMember.query.filter_by(user_id=db_user.id, guild_id=db_guild.id).first()
+            
+            if not guild_member:
+                await interaction.response.send_message(
+                    embed=self.error_embed("Could not find your economy profile."),
+                    ephemeral=True
+                )
+                return
+                
+            # Handle Company Shares
+            if item.name == 'Company Shares':
+                # We can't handle complex interactions in slash command response
+                # Need to defer and follow up
+                await interaction.response.defer()
+                
+                from models import Company
+                # Get list of companies in guild
+                companies = Company.query.filter_by(guild_id=db_guild.id).all()
+                
+                if not companies:
+                    await interaction.followup.send(
+                        embed=self.error_embed("There are no companies in this guild to invest in.")
+                    )
+                    return
+                
+                # Create a dropdown for company selection
+                select_embed = self.create_embed(
+                    "Select a Company",
+                    f"Please select a company to invest in using the dropdown menu below."
+                )
+                
+                # Create company selection options
+                options = []
+                for i, company in enumerate(companies):
+                    options.append(discord.SelectOption(
+                        label=company.name,
+                        value=str(company.id),
+                        description=f"Invest in {company.name}"
+                    ))
+                
+                # Create the dropdown view
+                class CompanySelectView(discord.ui.View):
+                    def __init__(self, cog, timeout=60):
+                        super().__init__(timeout=timeout)
+                        self.cog = cog
+                        self.selected_company = None
+                        
+                    @discord.ui.select(
+                        placeholder="Choose a company",
+                        min_values=1,
+                        max_values=1,
+                        options=options
+                    )
+                    async def select_company(self, select_interaction: discord.Interaction, select: discord.ui.Select):
+                        if select_interaction.user.id != interaction.user.id:
+                            await select_interaction.response.send_message(
+                                "This is not your selection menu.", ephemeral=True
+                            )
+                            return
+                            
+                        selected_id = int(select.values[0])
+                        self.selected_company = next((c for c in companies if c.id == selected_id), None)
+                        
+                        if self.selected_company:
+                            # Process company investment
+                            # Get investment parameters
+                            passive_income_rate = properties.get('passive_income_rate', 0.05)
+                            duration_days = properties.get('duration_days', 30)
+                            
+                            # Check if user already has shares in this company
+                            try:
+                                # Create investment record in database
+                                from datetime import datetime, timedelta
+                                
+                                with sa.create_engine(db.engine.url).connect() as conn:
+                                    existing = conn.execute(sa.text(
+                                        "SELECT * FROM company_investment WHERE investor_id = :investor_id AND company_id = :company_id"
+                                    ), {"investor_id": guild_member.id, "company_id": self.selected_company.id}).fetchone()
+                                    
+                                    if existing:
+                                        await select_interaction.response.send_message(
+                                            embed=self.cog.error_embed(f"You already own shares in {self.selected_company.name}."),
+                                            ephemeral=True
+                                        )
+                                        return
+                                    
+                                    # Create new investment
+                                    expires_at = datetime.utcnow() + timedelta(days=duration_days)
+                                    conn.execute(sa.text(
+                                        """
+                                        INSERT INTO company_investment 
+                                        (investor_id, company_id, amount_invested, percent_ownership, created_at, expires_at)
+                                        VALUES (:investor_id, :company_id, :amount_invested, :percent, :created_at, :expires_at)
+                                        """
+                                    ), {
+                                        "investor_id": guild_member.id,
+                                        "company_id": self.selected_company.id,
+                                        "amount_invested": item.price,
+                                        "percent": passive_income_rate,
+                                        "created_at": datetime.utcnow(),
+                                        "expires_at": expires_at
+                                    })
+                                    conn.commit()
+                                
+                                success_message = f"You invested in {self.selected_company.name}. You will earn {passive_income_rate*100}% of profits for {duration_days} days!"
+                                await select_interaction.response.send_message(
+                                    embed=self.cog.success_embed(success_message)
+                                )
+                                self.stop()
+                                
+                            except Exception as e:
+                                logging.error(f"Error processing company investment: {e}")
+                                await select_interaction.response.send_message(
+                                    embed=self.cog.error_embed("An error occurred during investment. Please try again."),
+                                    ephemeral=True
+                                )
+                                self.stop()
+                                
+                # Send the dropdown
+                view = CompanySelectView(self)
+                message = await interaction.followup.send(embed=select_embed, view=view)
+                
+                # Wait for selection
+                timed_out = await view.wait()
+                if timed_out:
+                    await interaction.followup.send(
+                        embed=self.error_embed("Investment selection timed out. Please try again.")
+                    )
+                    try:
+                        await message.edit(view=None)  # Disable the view
+                    except:
+                        pass
+                    return
+                
+                # If we get here without returning, the item has been used successfully
+                return
+                
+            # Handle Loot Boxes
+            elif item.category.name == 'Loot Boxes':
+                min_reward = properties.get('min_reward', 100)
+                max_reward = properties.get('max_reward', 500)
+                import random
+                reward_amount = random.randint(min_reward, max_reward)
+                
+                # Add money to user's wallet
+                guild_member.wallet += reward_amount
+                effect_message += f" and received {reward_amount} coins!"
+                
+                # Add transaction record
+                transaction = Transaction(
+                    user_id=db_user.id,
+                    guild_id=db_guild.id,
+                    transaction_type="loot_box",
+                    amount=reward_amount,
+                    description=f"Opened {item.name}"
+                )
+                db.session.add(transaction)
+            
+            # Handle Double Daily
+            elif item.name == 'Double Daily':
+                # Store effect in user's instance properties
+                instance_props = inventory_item.get_instance_properties()
+                duration_days = properties.get('duration_days', 7)
+                
+                # Calculate expiration date
+                from datetime import datetime, timedelta
+                expiry_date = datetime.utcnow() + timedelta(days=duration_days)
+                
+                # Save to instance properties
+                instance_props['double_daily'] = True
+                instance_props['double_daily_expiry'] = expiry_date.isoformat()
+                inventory_item.set_instance_properties(instance_props)
+                
+                effect_message += f" and will receive double daily rewards for {duration_days} days!"
+            
+            # Handle Robbery Shield
+            elif item.name == 'Robbery Shield':
+                # Store effect in user's instance properties
+                instance_props = inventory_item.get_instance_properties()
+                duration_days = properties.get('duration_days', 3)
+                
+                # Calculate expiration date
+                from datetime import datetime, timedelta
+                expiry_date = datetime.utcnow() + timedelta(days=duration_days)
+                
+                # Save to instance properties
+                instance_props['robbery_shield'] = True
+                instance_props['robbery_shield_expiry'] = expiry_date.isoformat()
+                inventory_item.set_instance_properties(instance_props)
+                
+                effect_message += f" and are now protected from robbery for {duration_days} days!"
+            
+            # Handle Quest Skip Token
+            elif item.name == 'Quest Skip Token':
+                from models import ActiveQuest
+                # Find active quest
+                active_quest = ActiveQuest.query.filter_by(
+                    user_id=db_user.id,
+                    guild_id=db_guild.id,
+                    completed=False
+                ).first()
+                
+                if active_quest:
+                    # Mark quest as completed and give reward
+                    active_quest.completed = True
+                    guild_member.wallet += active_quest.reward
+                    
+                    # Add transaction for reward
+                    transaction = Transaction(
+                        user_id=db_user.id,
+                        guild_id=db_guild.id,
+                        transaction_type="quest_reward",
+                        amount=active_quest.reward,
+                        description=f"Quest completed (skipped): {active_quest.quest_title}"
+                    )
+                    db.session.add(transaction)
+                    
+                    effect_message += f" and skipped quest '{active_quest.quest_title}', earning {active_quest.reward} coins!"
+                else:
+                    effect_message += " but you don't have any active quests to skip!"
+            
+            # Handle Bet Insurance
+            elif item.name == 'Bet Insurance':
+                # Store effect in user's instance properties
+                instance_props = inventory_item.get_instance_properties()
+                refund_percent = properties.get('refund_percent', 75)
+                
+                # Set bet insurance
+                instance_props['bet_insurance'] = True
+                instance_props['refund_percent'] = refund_percent
+                inventory_item.set_instance_properties(instance_props)
+                
+                effect_message += f" and will receive {refund_percent}% back if you lose your next bet!"
+            
+            # Legacy items support
+            elif "effect_type" in properties:
                 effect_type = properties["effect_type"]
                 
                 # Economy boost items
@@ -794,24 +1219,19 @@ class Items(BaseCog):
                     if "amount" in properties:
                         amount = int(properties["amount"])
                         
-                        # Find guild member record to access wallet
-                        from models import GuildMember
-                        guild_member = GuildMember.query.filter_by(user_id=db_user.id, guild_id=db_guild.id).first()
+                        # Add money to wallet
+                        guild_member.wallet += amount
+                        effect_message += f" and received {amount} coins!"
                         
-                        if guild_member:
-                            guild_member.wallet += amount
-                            effect_message += f" and received {amount} coins!"
-                            
-                            # Add transaction record
-                            from models import Transaction
-                            transaction = Transaction(
-                                user_id=db_user.id,
-                                guild_id=db_guild.id,
-                                transaction_type="item_use",
-                                amount=amount,
-                                description=f"Used {item.name}"
-                            )
-                            db.session.add(transaction)
+                        # Add transaction record
+                        transaction = Transaction(
+                            user_id=db_user.id,
+                            guild_id=db_guild.id,
+                            transaction_type="item_use",
+                            amount=amount,
+                            description=f"Used {item.name}"
+                        )
+                        db.session.add(transaction)
                 
                 # Role temp items
                 elif effect_type == "temp_role":
@@ -839,8 +1259,6 @@ class Items(BaseCog):
                         except Exception as e:
                             logging.error(f"Error handling temporary role item: {e}")
                             effect_message += f", but there was an error applying the role effect."
-                
-                # Add more effect types as needed
             
             # Update inventory
             inventory_item.quantity -= 1
@@ -1482,6 +1900,307 @@ class Items(BaseCog):
                 embed=self.error_embed("An error occurred while removing the item. Please try again."),
                 ephemeral=True
             )
+
+    async def investments_prefix(self, ctx):
+        """View your company investments."""
+        guild_id = ctx.guild.id
+        user_id = ctx.author.id
+        
+        # Find database records
+        db_guild = Guild.query.filter_by(discord_id=str(guild_id)).first()
+        db_user = User.query.filter_by(discord_id=str(user_id)).first()
+        
+        if not db_guild or not db_user:
+            await ctx.send(embed=self.error_embed("Database error. Please try again later."))
+            return
+        
+        # Find guild member record
+        from models import GuildMember
+        guild_member = GuildMember.query.filter_by(user_id=db_user.id, guild_id=db_guild.id).first()
+        
+        if not guild_member:
+            await ctx.send(embed=self.error_embed("Could not find your economy profile."))
+            return
+        
+        # Get user's investments
+        try:
+            from models import Company
+            with sa.create_engine(db.engine.url).connect() as conn:
+                investments = conn.execute(sa.text("""
+                    SELECT ci.*, c.name AS company_name
+                    FROM company_investment ci
+                    JOIN company c ON ci.company_id = c.id
+                    WHERE ci.investor_id = :investor_id
+                """), {"investor_id": guild_member.id}).fetchall()
+            
+            if not investments:
+                await ctx.send(embed=self.info_embed(
+                    "Your Investments", 
+                    "You don't have any active company investments."
+                ))
+                return
+            
+            embed = self.create_embed(
+                "Your Company Investments", 
+                f"Here are your investments in companies:"
+            )
+            
+            total_income = 0
+            
+            for inv in investments:
+                # Calculate time remaining
+                now = datetime.utcnow()
+                expires = inv.expires_at.replace(tzinfo=None) if inv.expires_at.tzinfo else inv.expires_at
+                time_left = expires - now
+                days_left = max(0, time_left.days)
+                
+                # Format percentage as whole number with % sign
+                percent = float(inv.percent_ownership) * 100
+                
+                # Add field for this investment
+                embed.add_field(
+                    name=f"Investment in {inv.company_name}",
+                    value=(
+                        f"Amount Invested: {inv.amount_invested} coins\n"
+                        f"Ownership: {percent:.1f}%\n"
+                        f"Time Remaining: {days_left} days\n"
+                        f"Last Payment: {inv.last_payment_at.strftime('%Y-%m-%d') if inv.last_payment_at else 'No payments yet'}"
+                    ),
+                    inline=False
+                )
+                
+                # Theoretically show estimated daily income
+                estimated_daily = 50 * float(inv.percent_ownership)  # Assume company makes 1000 coins per day
+                total_income += estimated_daily
+            
+            if total_income > 0:
+                embed.set_footer(text=f"Estimated daily income: ~{total_income:.1f} coins (varies based on company performance)")
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logging.error(f"Error retrieving investments: {e}")
+            await ctx.send(embed=self.error_embed("An error occurred while retrieving your investments."))
+
+    @app_commands.command(name="investments", description="View your company investments")
+    async def investments_slash(self, interaction: discord.Interaction):
+        """View your company investments with slash command."""
+        guild_id = interaction.guild_id
+        user_id = interaction.user.id
+        
+        # Find database records
+        db_guild = Guild.query.filter_by(discord_id=str(guild_id)).first()
+        db_user = User.query.filter_by(discord_id=str(user_id)).first()
+        
+        if not db_guild or not db_user:
+            await interaction.response.send_message(
+                embed=self.error_embed("Database error. Please try again later."),
+                ephemeral=True
+            )
+            return
+        
+        # Find guild member record
+        from models import GuildMember
+        guild_member = GuildMember.query.filter_by(user_id=db_user.id, guild_id=db_guild.id).first()
+        
+        if not guild_member:
+            await interaction.response.send_message(
+                embed=self.error_embed("Could not find your economy profile."),
+                ephemeral=True
+            )
+            return
+        
+        # Get user's investments
+        try:
+            from models import Company
+            with sa.create_engine(db.engine.url).connect() as conn:
+                investments = conn.execute(sa.text("""
+                    SELECT ci.*, c.name AS company_name
+                    FROM company_investment ci
+                    JOIN company c ON ci.company_id = c.id
+                    WHERE ci.investor_id = :investor_id
+                """), {"investor_id": guild_member.id}).fetchall()
+            
+            if not investments:
+                await interaction.response.send_message(
+                    embed=self.info_embed(
+                        "Your Investments", 
+                        "You don't have any active company investments."
+                    ),
+                    ephemeral=True
+                )
+                return
+            
+            embed = self.create_embed(
+                "Your Company Investments", 
+                f"Here are your investments in companies:"
+            )
+            
+            total_income = 0
+            
+            for inv in investments:
+                # Calculate time remaining
+                now = datetime.utcnow()
+                expires = inv.expires_at.replace(tzinfo=None) if inv.expires_at.tzinfo else inv.expires_at
+                time_left = expires - now
+                days_left = max(0, time_left.days)
+                
+                # Format percentage as whole number with % sign
+                percent = float(inv.percent_ownership) * 100
+                
+                # Add field for this investment
+                embed.add_field(
+                    name=f"Investment in {inv.company_name}",
+                    value=(
+                        f"Amount Invested: {inv.amount_invested} coins\n"
+                        f"Ownership: {percent:.1f}%\n"
+                        f"Time Remaining: {days_left} days\n"
+                        f"Last Payment: {inv.last_payment_at.strftime('%Y-%m-%d') if inv.last_payment_at else 'No payments yet'}"
+                    ),
+                    inline=False
+                )
+                
+                # Theoretically show estimated daily income
+                estimated_daily = 50 * float(inv.percent_ownership)  # Assume company makes 1000 coins per day
+                total_income += estimated_daily
+            
+            if total_income > 0:
+                embed.set_footer(text=f"Estimated daily income: ~{total_income:.1f} coins (varies based on company performance)")
+            
+            await interaction.response.send_message(embed=embed)
+            
+        except Exception as e:
+            logging.error(f"Error retrieving investments: {e}")
+            await interaction.response.send_message(
+                embed=self.error_embed("An error occurred while retrieving your investments."),
+                ephemeral=True
+            )
+    
+    async def process_investment_income_loop(self):
+        """Background task that processes company investment income."""
+        await self.bot.wait_until_ready()
+        
+        while not self.bot.is_closed():
+            try:
+                now = datetime.utcnow()
+                logging.info("Processing company investment income...")
+                
+                # Process company investment income
+                with db.engine.begin() as conn:
+                    # Find active investments
+                    investments_result = conn.execute(sa.text("""
+                        SELECT 
+                            ci.id, 
+                            ci.investor_id, 
+                            ci.company_id, 
+                            ci.amount_invested,
+                            ci.percent_ownership,
+                            u.discord_id as user_discord_id,
+                            c.name as company_name,
+                            gm.guild_id,
+                            gm.user_id
+                        FROM 
+                            company_investment ci
+                        JOIN 
+                            guild_member gm ON ci.investor_id = gm.id
+                        JOIN 
+                            user u ON gm.user_id = u.id
+                        JOIN 
+                            company c ON ci.company_id = c.id
+                        WHERE 
+                            ci.expires_at > :now
+                        AND 
+                            (ci.last_payment_at IS NULL OR DATE(ci.last_payment_at) < DATE(:now))
+                    """), {"now": now})
+                    
+                    investments = investments_result.fetchall()
+                    logging.info(f"Found {len(investments)} investments due for payment")
+                    
+                    for inv in investments:
+                        try:
+                            # Generate some random income for the company (simulated)
+                            company_daily_profit = random.randint(800, 1200)  # Random profit between 800-1200
+                            
+                            # Calculate investor's share based on ownership percentage
+                            investor_share = int(company_daily_profit * float(inv.percent_ownership) / 100)
+                            
+                            if investor_share > 0:
+                                # Add payment to investor's wallet
+                                conn.execute(sa.text("""
+                                    UPDATE guild_member
+                                    SET wallet = wallet + :amount
+                                    WHERE id = :investor_id
+                                """), {"amount": investor_share, "investor_id": inv.investor_id})
+                                
+                                # Record transaction
+                                conn.execute(sa.text("""
+                                    INSERT INTO transaction (
+                                        user_id, 
+                                        guild_id, 
+                                        transaction_type, 
+                                        amount, 
+                                        description, 
+                                        timestamp
+                                    )
+                                    VALUES (
+                                        :user_id,
+                                        :guild_id,
+                                        'investment_income',
+                                        :amount,
+                                        :description,
+                                        :timestamp
+                                    )
+                                """), {
+                                    "user_id": inv.user_id,
+                                    "guild_id": inv.guild_id,
+                                    "amount": investor_share,
+                                    "description": f"Investment income from {inv.company_name}",
+                                    "timestamp": now
+                                })
+                                
+                                # Update last payment timestamp
+                                conn.execute(sa.text("""
+                                    UPDATE company_investment
+                                    SET last_payment_at = :payment_time
+                                    WHERE id = :investment_id
+                                """), {"payment_time": now, "investment_id": inv.id})
+                                
+                                # Try to notify the user via DM
+                                try:
+                                    discord_user = self.bot.get_user(int(inv.user_discord_id)) if inv.user_discord_id else None
+                                        
+                                    if discord_user:
+                                        embed = self.success_embed(
+                                            f"You received {investor_share} coins from your investment in {inv.company_name}!"
+                                        )
+                                        await discord_user.send(embed=embed)
+                                except Exception as notify_err:
+                                    logging.error(f"Error sending investment notification: {notify_err}")
+                        
+                        except Exception as inv_err:
+                            logging.error(f"Error processing individual investment {inv.id}: {inv_err}")
+                    
+                    # Commit all changes
+                    conn.commit()
+                    
+                    # Clean up expired investments
+                    conn.execute(sa.text("""
+                        DELETE FROM company_investment
+                        WHERE expires_at < :now
+                    """), {"now": now})
+                    conn.commit()
+                
+            except Exception as e:
+                logging.error(f"Error in investment income processing: {e}")
+                db.session.rollback()
+            
+            # Run once a day
+            await asyncio.sleep(86400)  # 24 hours
+    
+    async def cog_load(self):
+        """Called when the cog is loaded."""
+        # Start background task for investment income
+        self.bot.loop.create_task(self.process_investment_income_loop())
 
 async def setup(bot):
     """Add the Items cog to the bot."""

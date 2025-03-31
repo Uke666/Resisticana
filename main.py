@@ -170,6 +170,82 @@ def inventory():
                          items=inventory_items, 
                          items_by_category=items_by_category)
 
+
+@app.route('/investments')
+def investments():
+    """Show a user's company investments."""
+    # Get the current user from session
+    user_id = session.get('user_id', 1)  # Default to user 1 for demo
+    
+    # Get user from database
+    user = models.User.query.get(user_id)
+    if not user:
+        flash('User not found', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Get guild memberships for this user
+    guild_memberships = models.GuildMember.query.filter_by(user_id=user.id).all()
+    
+    # Get investments across all guilds
+    investments_data = []
+    total_invested = 0
+    estimated_daily_income = 0
+    
+    for membership in guild_memberships:
+        # Find investments for this guild member
+        investments = models.CompanyInvestment.query.filter_by(investor_id=membership.id).all()
+        
+        for investment in investments:
+            # Skip expired investments
+            if not investment.is_active():
+                continue
+                
+            company = models.Company.query.get(investment.company_id)
+            guild = models.Guild.query.get(company.guild_id)
+            
+            # Calculate investment metrics
+            days_remaining = investment.days_remaining()
+            created_days_ago = (datetime.utcnow() - investment.created_at).days
+            total_days = created_days_ago + days_remaining
+            
+            # Calculate estimated daily income (random between 0.8-1.2% of investment)
+            daily_income = int(investment.amount_invested * float(investment.percent_ownership) / 100 * 0.01)
+            
+            # Add to totals
+            total_invested += investment.amount_invested
+            estimated_daily_income += daily_income
+            
+            # Calculate days consumed and total days
+            days_consumed = (datetime.utcnow() - investment.created_at).days
+            total_investment_days = days_consumed + days_remaining
+            
+            investment_info = {
+                'id': investment.id,
+                'company_name': company.name,
+                'guild_name': guild.name,
+                'amount_invested': investment.amount_invested,
+                'percent_ownership': float(investment.percent_ownership),
+                'created_at': investment.created_at,
+                'last_payment_at': investment.last_payment_at,
+                'expires_at': investment.expires_at,
+                'days_remaining': days_remaining,
+                'days_consumed': days_consumed,
+                'total_days': total_investment_days,
+                'is_active': investment.is_active(),
+                'estimated_daily_income': daily_income
+            }
+            
+            investments_data.append(investment_info)
+    
+    # Sort investments by creation date (newest first)
+    investments_data.sort(key=lambda x: x['created_at'], reverse=True)
+    
+    return render_template('investments.html', 
+                         user=user, 
+                         investments=investments_data,
+                         total_invested=total_invested,
+                         estimated_daily_income=estimated_daily_income)
+
 @app.route('/inventory/use/<int:item_id>', methods=['POST'])
 def use_item(item_id):
     """Use an item from inventory."""

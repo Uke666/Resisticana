@@ -62,6 +62,33 @@ class Company(db.Model):
     employees = db.relationship('GuildMember', backref='company', lazy='dynamic', 
                               foreign_keys=[GuildMember.company_id])
     owner = db.relationship('GuildMember', foreign_keys=[owner_id])
+    investments = db.relationship('CompanyInvestment', backref='company', lazy='dynamic')
+
+
+class CompanyInvestment(db.Model):
+    """Represents a user's investment in a company."""
+    id = db.Column(db.Integer, primary_key=True)
+    investor_id = db.Column(db.Integer, db.ForeignKey('guild_member.id'), nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=False)
+    amount_invested = db.Column(db.Integer, nullable=False)
+    percent_ownership = db.Column(db.Numeric, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    last_payment_at = db.Column(db.DateTime, nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    
+    # Relationships
+    investor = db.relationship('GuildMember', foreign_keys=[investor_id])
+    
+    def is_active(self):
+        """Check if the investment is still active."""
+        return datetime.utcnow() < self.expires_at
+    
+    def days_remaining(self):
+        """Calculate days remaining until investment expires."""
+        if not self.is_active():
+            return 0
+        delta = self.expires_at - datetime.utcnow()
+        return max(0, delta.days)
 
 
 class Transaction(db.Model):

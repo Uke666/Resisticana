@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Company Investments - Discord Economy Bot</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo" onerror="this.style.display='none'">Discord Economy Bot</h1>
+            <nav>
+                <ul>
+                    <li><a href="{{ url_for('home') }}">Home</a></li>
+                    <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                    <li><a href="{{ url_for('guilds') }}">Guilds</a></li>
+                    <li><a href="{{ url_for('inventory') }}">Inventory</a></li>
+                    <li><a href="{{ url_for('shop') }}">Shop</a></li>
+                </ul>
+            </nav>
+        </header>
+
+        <main>
+            <section class="card">
+                <div class="card-header">
+                    <h2>Your Company Investments</h2>
+                </div>
+                <div class="card-body">
+                    {% if investments %}
+                        <div class="investments-overview">
+                            <div class="stat-card">
+                                <h3>Total Investments</h3>
+                                <div class="stat-value">{{ total_invested }} coins</div>
+                            </div>
+                            <div class="stat-card">
+                                <h3>Estimated Daily Income</h3>
+                                <div class="stat-value">~{{ estimated_daily_income }} coins</div>
+                                <div class="stat-footnote">Varies based on company performance</div>
+                            </div>
+                            <div class="stat-card">
+                                <h3>Active Investments</h3>
+                                <div class="stat-value">{{ investments|length }}</div>
+                            </div>
+                        </div>
+
+                        <div class="investments-list">
+                            {% for investment in investments %}
+                                <div class="investment-card">
+                                    <div class="investment-header">
+                                        <h3>{{ investment.company_name }}</h3>
+                                        <span class="investment-date">Invested on {{ investment.created_at.strftime('%Y-%m-%d') }}</span>
+                                    </div>
+                                    <div class="investment-details">
+                                        <div class="investment-stat">
+                                            <span class="label">Amount Invested:</span>
+                                            <span class="value">{{ investment.amount_invested }} coins</span>
+                                        </div>
+                                        <div class="investment-stat">
+                                            <span class="label">Ownership:</span>
+                                            <span class="value">{{ "%.1f"|format(investment.percent_ownership) }}%</span>
+                                        </div>
+                                        <div class="investment-stat">
+                                            <span class="label">Last Payment:</span>
+                                            <span class="value">
+                                                {% if investment.last_payment_at %}
+                                                    {{ investment.last_payment_at.strftime('%Y-%m-%d') }}
+                                                {% else %}
+                                                    No payments yet
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                        <div class="investment-stat">
+                                            <span class="label">Time Remaining:</span>
+                                            <span class="value">{{ investment.days_remaining }} days</span>
+                                        </div>
+                                        <div class="investment-stat">
+                                            <span class="label">Est. Daily Income:</span>
+                                            <span class="value">~{{ investment.estimated_daily_income }} coins</span>
+                                        </div>
+                                    </div>
+                                    <div class="investment-footer">
+                                        <div class="investment-progress">
+                                            <div class="progress-bar">
+                                                <div class="progress-fill" style="width: {{ (investment.days_consumed / investment.total_days) * 100 }}%;"></div>
+                                            </div>
+                                            <div class="progress-label">
+                                                {{ investment.days_consumed }} days elapsed / {{ investment.total_days }} days total
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <p>You don't have any active investments.</p>
+                            <p>Visit the shop's Investment category to purchase company investments!</p>
+                            <a href="{{ url_for('shop', category='Investments') }}" class="btn">Shop Investments</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 Discord Economy Bot - All rights reserved</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
