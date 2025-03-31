@@ -23,16 +23,12 @@ class Betting(BaseCog):
     @app_commands.describe(event_description="Description of the betting event")
     async def create_bet(self, interaction: discord.Interaction, event_description: str):
         """Create a new betting event."""
-        creator_id = ctx.author.id if isinstance(ctx, commands.Context) else ctx.user.id
+        creator_id = interaction.user.id
 
         # Analyze event using AI
         event_info = await self.analyze_event(event_description)
         if not event_info:
-            error_msg = "Could not analyze the event. Please be more specific!"
-            if isinstance(ctx, commands.Context):
-                await ctx.send(error_msg)
-            else:
-                await ctx.response.send_message(error_msg, ephemeral=True)
+            await interaction.response.send_message("Could not analyze the event. Please be more specific!", ephemeral=True)
             return
 
         bet_id = len(self.active_bets)
@@ -54,88 +50,52 @@ class Betting(BaseCog):
         )
         embed.add_field(name="Options", value="\n".join(event_info['options']), inline=False)
         embed.add_field(name="Bet ID", value=f"#{bet_id}", inline=True)
-        embed.add_field(name="Created by", value=ctx.author.mention if isinstance(ctx, commands.Context) else ctx.user.mention, inline=True)
+        embed.add_field(name="Created by", value=interaction.user.mention, inline=True)
         embed.add_field(name="Estimated End", value=event_info['estimated_end_time'].strftime("%Y-%m-%d %H:%M UTC"), inline=False)
 
-        if isinstance(ctx, commands.Context):
-            await ctx.send(embed=embed)
-        else:
-            await ctx.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed)
 
-    @commands.hybrid_command(name="placebet", description="Place a bet on an event")
-    @app_commands.describe(bet_id="The ID of the bet", choice="Your betting choice", amount="Amount to bet")
-    async def place_bet(self, ctx, bet_id: int, choice: str, amount: int):
-        """Place a bet on an event."""
-        try:
-            if bet_id not in self.active_bets:
-                error_msg = "Bet not found!"
-                if isinstance(ctx, commands.Context):
-                    await ctx.send(error_msg)
-                else:
-                    await ctx.response.send_message(error_msg, ephemeral=True)
-                return
+    @app_commands.command(name="placebet", description="Place a bet on an event")
+    @app_commands.describe(
+        bet_id="The ID of the bet",
+        choice="Your betting choice",
+        amount="Amount to bet"
+    )
+    async def place_bet(self, interaction: discord.Interaction, bet_id: int, choice: str, amount: int):
+        if bet_id not in self.active_bets:
+            await interaction.response.send_message("Bet not found!", ephemeral=True)
+            return
 
-            bet = self.active_bets[bet_id]
-            if bet['status'] != 'open':
-                error_msg = "This bet is no longer accepting entries!"
-                if isinstance(ctx, commands.Context):
-                    await ctx.send(error_msg)
-                else:
-                    await ctx.response.send_message(error_msg, ephemeral=True)
-                return
+        bet = self.active_bets[bet_id]
+        if bet['status'] != 'open':
+            await interaction.response.send_message("This bet is no longer accepting entries!", ephemeral=True)
+            return
 
-            # Validate choice
-            if choice not in bet['options']:
-                error_msg = f"Invalid choice! Options are: {', '.join(bet['options'])}"
-                if isinstance(ctx, commands.Context):
-                    await ctx.send(error_msg)
-                else:
-                    await ctx.response.send_message(error_msg, ephemeral=True)
-                return
+        if choice not in bet['options']:
+            await interaction.response.send_message(f"Invalid choice! Options are: {', '.join(bet['options'])}", ephemeral=True)
+            return
 
-            # Check user's balance
-            user_id = ctx.author.id if isinstance(ctx, commands.Context) else ctx.user.id
-            user_data = self.db.get_or_create_user(user_id)
-            if user_data['wallet'] < amount:
-                error_msg = "You don't have enough money in your wallet!"
-                if isinstance(ctx, commands.Context):
-                    await ctx.send(error_msg)
-                else:
-                    await ctx.response.send_message(error_msg, ephemeral=True)
-                return
+        user_id = interaction.user.id
+        user_data = self.db.get_or_create_user(user_id)
+        if user_data['wallet'] < amount:
+            await interaction.response.send_message("You don't have enough money in your wallet!", ephemeral=True)
+            return
 
-            # Place bet
-            self.db.remove_money(user_id, amount)
-            bet['participants'][user_id] = {
-                'option': choice,
-                'amount': amount,
-                'placed_at': datetime.now()
-            }
+        self.db.remove_money(user_id, amount)
+        bet['participants'][user_id] = {
+            'option': choice,
+            'amount': amount,
+            'placed_at': datetime.now()
+        }
 
-            success_msg = f"Bet placed! You bet ${amount} on {choice}"
-            if isinstance(ctx, commands.Context):
-                await ctx.send(success_msg)
-            else:
-                await ctx.response.send_message(success_msg)
+        await interaction.response.send_message(f"Bet placed! You bet ${amount} on {choice}")
 
-        except ValueError as e:
-            error_msg = f"Error: {str(e)}"
-            if isinstance(ctx, commands.Context):
-                await ctx.send(error_msg)
-            else:
-                await ctx.response.send_message(error_msg, ephemeral=True)
-
-    @commands.hybrid_command(name="activebets", description="View all active betting events")
-    async def view_active_bets(self, ctx):
-        """View all active betting events."""
+    @app_commands.command(name="activebets", description="View all active betting events")
+    async def view_active_bets(self, interaction: discord.Interaction):
         active_bets = {bid: bet for bid, bet in self.active_bets.items() if bet['status'] == 'open'}
 
         if not active_bets:
-            error_msg = "No active bets!"
-            if isinstance(ctx, commands.Context):
-                await ctx.send(error_msg)
-            else:
-                await ctx.response.send_message(error_msg, ephemeral=True)
+            await interaction.response.send_message("No active bets!", ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -153,39 +113,26 @@ class Betting(BaseCog):
                 inline=False
             )
 
-        if isinstance(ctx, commands.Context):
-            await ctx.send(embed=embed)
-        else:
-            await ctx.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed)
 
-    @commands.hybrid_command(name="resolvebet", description="Resolve a bet and distribute winnings")
-    @app_commands.describe(bet_id="The ID of the bet to resolve", winner="The winning option")
-    @commands.has_permissions(administrator=True)
-    async def resolve_bet(self, ctx, bet_id: int, winner: str):
-        """Resolve a bet and distribute winnings."""
+    @app_commands.command(name="resolvebet", description="Resolve a bet and distribute winnings")
+    @app_commands.describe(
+        bet_id="The ID of the bet to resolve",
+        winner="The winning option"
+    )
+    @app_commands.checks.has_permissions(administrator=True)
+    async def resolve_bet(self, interaction: discord.Interaction, bet_id: int, winner: str):
         if bet_id not in self.active_bets:
-            error_msg = "Bet not found!"
-            if isinstance(ctx, commands.Context):
-                await ctx.send(error_msg)
-            else:
-                await ctx.response.send_message(error_msg, ephemeral=True)
+            await interaction.response.send_message("Bet not found!", ephemeral=True)
             return
 
         bet = self.active_bets[bet_id]
         if bet['status'] != 'open':
-            error_msg = "This bet has already been resolved!"
-            if isinstance(ctx, commands.Context):
-                await ctx.send(error_msg)
-            else:
-                await ctx.response.send_message(error_msg, ephemeral=True)
+            await interaction.response.send_message("This bet has already been resolved!", ephemeral=True)
             return
 
         if winner not in bet['options']:
-            error_msg = f"Invalid winner! Options were: {', '.join(bet['options'])}"
-            if isinstance(ctx, commands.Context):
-                await ctx.send(error_msg)
-            else:
-                await ctx.response.send_message(error_msg, ephemeral=True)
+            await interaction.response.send_message(f"Invalid winner! Options were: {', '.join(bet['options'])}", ephemeral=True)
             return
 
         total_pot = sum(p['amount'] for p in bet['participants'].values())
@@ -210,15 +157,11 @@ class Betting(BaseCog):
         embed.add_field(name="Total Pot", value=f"${total_pot}", inline=True)
         embed.add_field(name="Number of Winners", value=str(len(winning_bets)), inline=True)
 
-        if isinstance(ctx, commands.Context):
-            await ctx.send(embed=embed)
-        else:
-            await ctx.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed)
 
     async def analyze_event(self, description):
         """Analyze event description to generate smart betting options."""
         try:
-            # Keep your existing analyze_event logic here
             sports_keywords = {
                 'cricket': ['win by runs', 'win by wickets', 'match tied'],
                 'football': ['win by goals', 'draw', 'clean sheet'],
