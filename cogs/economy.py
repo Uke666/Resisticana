@@ -900,6 +900,9 @@ class Economy(BaseCog):
     @app_commands.describe(
         request_id="The ID of the request to reject"
     )
+    async def reject_request_slash(self, interaction: discord.Interaction, request_id: int):
+        await self.reject_request_slash(interaction, request_id)
+
     @commands.command(name="history", aliases=["transactions"])
     async def transaction_history(self, ctx, limit: int = 5):
         """View your recent transaction history."""
