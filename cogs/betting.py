@@ -19,9 +19,9 @@ class Betting(BaseCog):
         self.bet_results = {}
         self.openai_client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-    @commands.hybrid_command(name="createbet", description="Create a new betting event")
+    @app_commands.command(name="createbet", description="Create a new betting event")
     @app_commands.describe(event_description="Description of the betting event")
-    async def create_bet(self, ctx, *, event_description: str):
+    async def create_bet(self, interaction: discord.Interaction, event_description: str):
         """Create a new betting event."""
         creator_id = ctx.author.id if isinstance(ctx, commands.Context) else ctx.user.id
 
