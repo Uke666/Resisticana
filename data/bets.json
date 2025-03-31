@@ -10,7 +10,13 @@
         "Win by 1-5 wickets",
         "Super Over finish"
       ],
-      "participants": {},
+      "participants": {
+        "1213811705709203530": {
+          "option": "Win by 30+ runs",
+          "amount": 100,
+          "placed_at": "2025-03-31T18:38:50.201658"
+        }
+      },
       "status": "open",
       "created_at": "2025-03-31T18:28:39.872482",
       "end_time": "2025-04-01T06:28:39.872457",
