@@ -116,10 +116,9 @@ async def help_command(ctx, category=None):
     # Create base embed with fancy styling
     embed = discord.Embed(
         title="🤖 Discord Economy Bot - Help Menu",
-        description=f"```ini\n[Use {prefix}help <category> to view specific commands]\n[All commands are also available as slash commands!]```",
-        color=discord.Color.gold()
+        description=f"[Use !help <category> to view specific commands]\n[All commands are also available as slash commands!]",
+        color=discord.Color.blurple()
     )
-    embed.set_thumbnail(url="https://raw.githubusercontent.com/your-username/your-repo/master/static/img/coin.svg")
 
     # Add footer with version info
     embed.set_footer(text=f"Discord Economy Bot | Use {prefix}help or /help")
@@ -128,7 +127,7 @@ async def help_command(ctx, category=None):
     if not category:
         embed.add_field(
             name="🏦 Economy",
-            value=f"```ini\n[{prefix}help economy] - Money, bank, and daily rewards```",
+            value=f"`{prefix}help economy` - Money, bank, and daily rewards",
             inline=False
         )
         embed.add_field(
