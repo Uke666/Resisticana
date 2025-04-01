@@ -1,45 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-  <!-- Coin Gradient -->
-  <defs>
-    <linearGradient id="coinGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FFD700"/>
-      <stop offset="50%" stop-color="#FFC107"/>
-      <stop offset="100%" stop-color="#FF9800"/>
-    </linearGradient>
-    <linearGradient id="edgeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#FF8F00"/>
-      <stop offset="50%" stop-color="#FFB300"/>
-      <stop offset="100%" stop-color="#FF8F00"/>
-    </linearGradient>
-    <filter id="coinShadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
-      <feOffset dx="2" dy="2" result="offsetblur"/>
-      <feComponentTransfer>
-        <feFuncA type="linear" slope="0.5"/>
-      </feComponentTransfer>
-      <feMerge>
-        <feMergeNode/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-  </defs>
-  
-  <!-- Coin Base -->
-  <g filter="url(#coinShadow)">
-    <!-- Coin Edge -->
-    <ellipse cx="100" cy="118" rx="80" ry="20" fill="url(#edgeGradient)"/>
+<svg width="200" height="200" viewBox="0 0 200 200" version="1.1" xmlns="http://www.w3.org/2000/svg">
+    <!-- Coin Outer Ring -->
+    <circle cx="100" cy="100" r="90" fill="#FAC213" stroke="#B27D00" stroke-width="4"/>
     
-    <!-- Coin Face -->
-    <circle cx="100" cy="100" r="80" fill="url(#coinGradient)" stroke="#FFB300" stroke-width="2"/>
+    <!-- Inner Circle -->
+    <circle cx="100" cy="100" r="82" fill="#FFD700"/>
     
-    <!-- Coin Inner Circle -->
-    <circle cx="100" cy="100" r="65" fill="none" stroke="#FFB300" stroke-width="2" stroke-opacity="0.6"/>
+    <!-- Highlights -->
+    <ellipse cx="70" cy="70" rx="55" ry="45" fill="#FFE566" fill-opacity="0.6"/>
     
-    <!-- Shine Effect -->
-    <ellipse cx="70" cy="70" rx="25" ry="20" fill="white" fill-opacity="0.3" transform="rotate(-15 70 70)"/>
+    <!-- Edge Details -->
+    <g stroke="#B27D00" stroke-width="2" fill="none">
+        <path d="M30,100 A70,70 0 0,1 170,100" />
+        <path d="M35,75 A65,65 0 0,1 165,75" />
+        <path d="M35,125 A65,65 0 0,1 165,125" />
+    </g>
     
     <!-- Dollar Sign -->
-    <text x="100" y="125" font-family="Arial, sans-serif" font-size="85" font-weight="bold" text-anchor="middle" fill="#FFB300" stroke="#FFA000" stroke-width="2">$</text>
-  </g>
+    <g transform="translate(100, 100)">
+        <path d="M-20,-30 L20,-30 C30,-30 40,-20 40,-10 C40,0 30,10 20,10 L-20,10 C-30,10 -40,20 -40,30 C-40,40 -30,50 -20,50 L20,50"
+              stroke="#B27D00" stroke-width="10" stroke-linecap="round" fill="none"/>
+        <line x1="0" y1="-40" x2="0" y2="60" stroke="#B27D00" stroke-width="10" stroke-linecap="round"/>
+    </g>
 </svg>

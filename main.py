@@ -507,6 +507,128 @@ def generate_event():
             'error': str(e)
         }), 500
 
+@app.route('/api/hints', methods=['GET'])
+def get_hints():
+    """Retrieve contextual hints for the UI hint system."""
+    # Define hints by page and context
+    hints = {
+        'dashboard': [
+            {
+                'id': 'dashboard-welcome',
+                'title': 'Welcome to Your Dashboard',
+                'content': 'This is your central hub for managing your economy bot. Monitor performance, track statistics, and control your bot from here.'
+            },
+            {
+                'id': 'dashboard-refresh',
+                'title': 'Refresh Status',
+                'content': 'Use the refresh button to get the latest bot status information if you\'ve made changes recently.'
+            },
+            {
+                'id': 'dashboard-charts',
+                'title': 'Activity Charts',
+                'content': 'These charts show recent activity trends for your bot. They update automatically as more data is collected.'
+            }
+        ],
+        'inventory': [
+            {
+                'id': 'inventory-usage',
+                'title': 'Using Items',
+                'content': 'Click the "Use" button on consumable items to activate their special effects. Some items provide economic benefits or special roles.'
+            },
+            {
+                'id': 'inventory-categories',
+                'title': 'Item Categories',
+                'content': 'Your items are organized by category for easier management. Collectibles are permanent while consumables can be used once.'
+            },
+            {
+                'id': 'inventory-tags',
+                'title': 'Item Tags',
+                'content': 'Look for colored tags on your items. "Consumable" means the item can be used, while "Not Tradeable" means it\'s bound to your account.'
+            }
+        ],
+        'shop': [
+            {
+                'id': 'shop-navigation',
+                'title': 'Shop Categories',
+                'content': 'Browse different categories using the tabs at the top. Each category contains different types of items with unique effects.'
+            },
+            {
+                'id': 'shop-item-types',
+                'title': 'Item Types',
+                'content': 'Collectibles are permanent, Power-Ups provide temporary effects, and Investments generate passive income over time.'
+            },
+            {
+                'id': 'shop-limited',
+                'title': 'Limited Items',
+                'content': 'Items marked as "Limited" are available in restricted quantities. Once sold out, they may not be available again!'
+            }
+        ],
+        'investments': [
+            {
+                'id': 'investments-overview',
+                'title': 'Investment Dashboard',
+                'content': 'Here you can track all your company investments. Each investment generates passive income over a fixed period.'
+            },
+            {
+                'id': 'investments-income',
+                'title': 'Passive Income',
+                'content': 'Investments generate daily income based on your ownership percentage and the company\'s performance.'
+            },
+            {
+                'id': 'investments-expiry',
+                'title': 'Investment Duration',
+                'content': 'Each investment has a limited duration. Monitor the progress bar to see how much time remains before it expires.'
+            }
+        ],
+        'events': [
+            {
+                'id': 'events-overview',
+                'title': 'Economic Events',
+                'content': 'Economic events affect the entire economy with multipliers that can increase or decrease rewards, income, and other activities.'
+            },
+            {
+                'id': 'events-impact',
+                'title': 'Event Impact',
+                'content': 'Events marked as "Positive" increase rewards, while "Negative" events reduce them. "Neutral" events have mixed effects.'
+            },
+            {
+                'id': 'events-duration',
+                'title': 'Event Duration',
+                'content': 'Events last for a limited time before expiring. Plan your economic activities accordingly to maximize or minimize their effects.'
+            }
+        ],
+        'global': [
+            {
+                'id': 'global-navigation',
+                'title': 'Website Navigation',
+                'content': 'Use the navigation menu at the top to quickly access different areas of your economy bot dashboard.'
+            },
+            {
+                'id': 'global-wallet',
+                'title': 'Your Wallet',
+                'content': 'Your current coin balance is displayed on relevant pages. You\'ll need coins to purchase items and make investments.'
+            },
+            {
+                'id': 'global-discord',
+                'title': 'Discord Integration',
+                'content': 'Changes made on this website are synchronized with your Discord bot. Use commands in Discord for more real-time interactions.'
+            }
+        ]
+    }
+    
+    page = request.args.get('page', 'global')
+    if page in hints:
+        return jsonify({
+            'success': True,
+            'hints': hints[page]
+        })
+    
+    # If page not found, return global hints
+    return jsonify({
+        'success': True,
+        'hints': hints['global']
+    })
+
 @app.route('/shop/purchase', methods=['POST'])
 def purchase_item():
     """Purchase an item from the shop."""
