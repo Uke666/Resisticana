@@ -132,32 +132,32 @@ async def help_command(ctx, category=None):
         )
         embed.add_field(
             name="🏢 Company",
-            value=f"`{prefix}help company` - Company creation and management",
+            value=f"[!help company] - Company creation and management",
             inline=False
         )
         embed.add_field(
-            name="🛡️ Moderation",
-            value=f"`{prefix}help moderation` - Role-based timeout commands",
+            name="🛡️ Moderation", 
+            value=f"[!help moderation] - Role-based timeout commands",
             inline=False
         )
         embed.add_field(
             name="📊 General",
-            value=f"`{prefix}help general` - General utility commands",
+            value=f"[!help general] - General utility commands",
             inline=False
         )
         embed.add_field(
             name="🎲 Bets",
-            value=f"`{prefix}help bets` - AI-powered betting system",
+            value=f"[!help bets] - AI-powered betting system",
             inline=False
         )
         embed.add_field(
             name="🎁 Items",
-            value=f"`{prefix}help items` - Shop and inventory system",
+            value=f"[!help items] - Shop and inventory system",
             inline=False
         )
         embed.add_field(
             name="📈 Events",
-            value=f"`{prefix}help events` - Economic events affecting the economy",
+            value=f"[!help events] - Economic events affecting the economy",
             inline=False
         )
 
@@ -290,32 +290,32 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
         )
         embed.add_field(
             name="🏢 Company",
-            value=f"`/help company` - Company creation and management",
+            value=f"[/help company] - Company creation and management",
             inline=False
         )
         embed.add_field(
             name="🛡️ Moderation",
-            value=f"`/help moderation` - Role-based timeout commands",
+            value=f"[/help moderation] - Role-based timeout commands",
             inline=False
         )
         embed.add_field(
             name="📊 General",
-            value=f"`/help general` - General utility commands",
+            value=f"[/help general] - General utility commands",
             inline=False
         )
         embed.add_field(
             name="🎲 Bets",
-            value=f"`/help bets` - AI-powered betting system",
+            value=f"[/help bets] - AI-powered betting system",
             inline=False
         )
         embed.add_field(
             name="🎁 Items",
-            value=f"`/help items` - Shop and inventory system",
+            value=f"[/help items] - Shop and inventory system",
             inline=False
         )
         embed.add_field(
             name="📈 Events",
-            value=f"`/help events` - Economic events affecting the economy",
+            value=f"[/help events] - Economic events affecting the economy",
             inline=False
         )
 
