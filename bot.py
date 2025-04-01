@@ -328,8 +328,9 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
 
     # Economy commands
     elif category.lower() == "economy":
-        embed.title = "Economy Commands"
-        embed.description = "Commands for managing your money and earning rewards."
+        embed.title = "💰 Economy Commands"
+        embed.description = "```ini\n[Commands for managing your money and earning rewards]```"
+        embed.color = discord.Color.gold()
 
         embed.add_field(name="/balance", value="Check your current balance", inline=False)
         embed.add_field(name="/daily", value="Claim your daily reward of $100", inline=False)
@@ -345,8 +346,9 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
 
     # Company commands
     elif category.lower() == "company":
-        embed.title = "Company Commands"
-        embed.description = "Commands for managing companies and employees."
+        embed.title = "🏢 Company Commands"
+        embed.description = "```ini\n[Commands for managing companies and employees]```"
+        embed.color = discord.Color.gold()
 
         embed.add_field(name="/createcompany name:<name>", value="Create a new company (requires higher role)", inline=False)
         embed.add_field(name="/company [name]", value="Display info about your company or another company", inline=False)
@@ -358,8 +360,9 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
 
     # Moderation commands
     elif category.lower() == "moderation":
-        embed.title = "Moderation Commands"
-        embed.description = "Commands for moderating users with timeouts."
+        embed.title = "🛡️ Moderation Commands"
+        embed.description = "```ini\n[Commands for moderating users with timeouts]```"
+        embed.color = discord.Color.gold()
 
         embed.add_field(name="/timeout user:<@user>", value="Timeout a user based on your role permissions", inline=False)
         embed.add_field(name="/timeout_cost", value="Check the cost of using the timeout command", inline=False)
@@ -368,8 +371,9 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
 
     # Betting commands
     elif category.lower() == "bets":
-        embed.title = "Betting Commands"
-        embed.description = "Commands for AI-powered betting system."
+        embed.title = "🎲 Betting Commands"
+        embed.description = "```ini\n[Commands for AI-powered betting system]```"
+        embed.color = discord.Color.gold()
 
         embed.add_field(name="/createbet event_description:<description>", value="Create a new betting event with AI-generated options", inline=False)
         embed.add_field(name="/sportsbet match_description:<desc> end_time:<hours> option1:<option1> option2:<option2>", 
@@ -383,8 +387,9 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
 
     # General commands
     elif category.lower() == "general":
-        embed.title = "General Commands"
-        embed.description = "General utility commands."
+        embed.title = "📊 General Commands"
+        embed.description = "```ini\n[General utility commands]```"
+        embed.color = discord.Color.gold()
 
         embed.add_field(name="/help [category]", value="Display this help menu", inline=False)
         embed.add_field(name="/ping", value="Check the bot's response time", inline=False)
@@ -392,8 +397,9 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
 
     # Items commands
     elif category.lower() == "items":
-        embed.title = "Items and Shop Commands"
-        embed.description = "Commands for browsing the shop and managing your inventory."
+        embed.title = "🎁 Items and Shop Commands"
+        embed.description = "```ini\n[Commands for browsing the shop and managing your inventory]```"
+        embed.color = discord.Color.gold()
 
         embed.add_field(name="/shop [category]", value="Browse the item shop or specific category", inline=False)
         embed.add_field(name="/buy item_id:<id>", value="Buy an item from the shop", inline=False)
@@ -406,8 +412,9 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
 
     # Events commands
     elif category.lower() == "events":
-        embed.title = "Economic Events Commands"
-        embed.description = "Commands for interacting with dynamic economic events."
+        embed.title = "📈 Economic Events Commands"
+        embed.description = "```ini\n[Commands for interacting with dynamic economic events]```"
+        embed.color = discord.Color.gold()
 
         embed.add_field(name="/events", value="View current active economic events", inline=False)
         embed.add_field(name="/event_info event_id:<id>", value="Get details about a specific economic event", inline=False)
