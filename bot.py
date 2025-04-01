@@ -117,37 +117,29 @@ async def help_command(ctx, category=None):
     embed = discord.Embed(
         title="Discord Economy Bot - Help Menu",
         description=f"Use `{prefix}help <category>` to view specific commands.\nAll commands are also available as slash commands!",
-        color=discord.Color.dark_gray()
+        color=discord.Color.blue()
     )
-
-    # Add footer with version info
-    embed.set_footer(text=f"Discord Economy Bot | Use {prefix}help or /help")
 
     # General help menu (categories)
     if not category:
         embed.title = "Discord Economy Bot - Help Menu"
         embed.description = f"Use `{prefix}help <category>` to view specific commands.\nAll commands are also available as slash commands!"
-        embed.color = discord.Color.dark_gray()
-
+        
         categories = [
-            ("🏦", "Economy", f"`{prefix}help economy`", "Money, bank, and daily rewards"),
-            ("🏢", "Company", f"`{prefix}help company`", "Company creation and management"),
-            ("🛡️", "Moderation", f"`{prefix}help moderation`", "Role-based timeout commands"),
-            ("👥", "General", f"`{prefix}help general`", "General utility commands"),
-            ("🎲", "Bets", f"`{prefix}help bets`", "AI-powered betting system"),
-            ("🎁", "Items", f"`{prefix}help items`", "Shop and inventory system"),
-            ("📈", "Events", f"`{prefix}help events`", "Economic events affecting the economy")
+            ("🏦", "Economy", f"{prefix}help economy", "Money, bank, and daily rewards"),
+            ("🏢", "Company", f"{prefix}help company", "Company creation and management"),
+            ("🛡️", "Moderation", f"{prefix}help moderation", "Role-based timeout commands"),
+            ("👥", "General", f"{prefix}help general", "General utility commands"),
+            ("🎲", "Bets", f"{prefix}help bets", "AI-powered betting system"),
+            ("🎁", "Items", f"{prefix}help items", "Shop and inventory system"),
+            ("📈", "Events", f"{prefix}help events", "Economic events affecting the economy")
         ]
 
         desc_lines = []
         for emoji, name, command, desc in categories:
-            desc_lines.append(f"{emoji} **{name}**\n{command} - {desc}")
+            desc_lines.append(f"{emoji} {name}\n`{command}` - {desc}")
 
-        embed.description = (
-            f"Use `{prefix}help <category>` to view specific commands.\n"
-            "All commands are also available as slash commands!\n\n" + 
-            "\n".join(desc_lines)
-        )
+        embed.description = "Use `!help <category>` to view specific commands.\nAll commands are also available as slash commands!\n\n" + "\n".join(desc_lines)
 
     # Economy commands
     elif category.lower() == "economy":
