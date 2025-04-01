@@ -119,9 +119,12 @@ class Items(BaseCog):
                     for category in categories:
                         # Get item count for this category
                         item_count = Item.query.filter_by(category_id=category.id).count()
+                        # Log the category name that we're adding to options
+                        logging.info(f"Adding category option: {category.name} with value {category.name}")
                         options.append(discord.SelectOption(
                             label=category.name,
                             description=f"{item_count} items available",
+                            # Store exact category name to avoid case sensitivity issues
                             value=category.name
                         ))
                     
@@ -134,6 +137,9 @@ class Items(BaseCog):
                 
                 async def callback(self, interaction: discord.Interaction):
                     selected_category = self.values[0]
+                    logging.info(f"Category dropdown selected: '{selected_category}'")
+                    # Log the exact value that will be sent to show_category_items_slash
+                    logging.info(f"Selected category value (unmodified): '{selected_category}'")
                     await self.cog.show_category_items_slash(interaction, selected_category)
             
             class CategoryView(discord.ui.View):
@@ -233,8 +239,42 @@ class Items(BaseCog):
         from app import app
         
         with app.app_context():
-            # Find category
-            category = ItemCategory.query.filter(sa.func.lower(ItemCategory.name) == category_name.lower()).first()
+            # Log the requested category name for debugging
+            logging.info(f"Searching for category: '{category_name}'")
+            
+            # Get all categories for logging
+            all_categories = ItemCategory.query.all()
+            category_names = [c.name for c in all_categories]
+            logging.info(f"Available categories: {category_names}")
+            
+            # Initialize category variable
+            category = None
+            
+            # Try with direct name match first for Special Power-ups and Loot Boxes specifically
+            if category_name in ["Special Power-ups", "Loot Boxes"]:
+                category = ItemCategory.query.filter_by(name=category_name).first()
+                logging.info(f"Direct match result for '{category_name}': {category}")
+                
+            # If not found or not a special case, try case-insensitive match
+            if not category:
+                category = ItemCategory.query.filter(sa.func.lower(ItemCategory.name) == category_name.lower()).first()
+                logging.info(f"Case-insensitive match result: {category}")
+            
+            # If still not found, try partial match for special categories
+            if not category and ("power" in category_name.lower() or "loot" in category_name.lower()):
+                if "power" in category_name.lower():
+                    # Try to find Power-Ups or Special Power-ups
+                    category = ItemCategory.query.filter(
+                        sa.or_(
+                            ItemCategory.name == "Power-Ups",
+                            ItemCategory.name == "Special Power-ups"
+                        )
+                    ).first()
+                    logging.info(f"Power-ups partial match result: {category}")
+                elif "loot" in category_name.lower():
+                    # Try to find Loot Boxes
+                    category = ItemCategory.query.filter_by(name="Loot Boxes").first()
+                    logging.info(f"Loot Boxes partial match result: {category}")
             
             if not category:
                 if interaction.response.is_done():
