@@ -151,11 +151,25 @@
                         
                         statusDiv.innerHTML += `<br>Uptime: ${uptimeText}`;
                     } else {
-                        statusDiv.className = 'status-indicator stopped';
-                        statusDiv.innerHTML = 'Bot is not running ❌';
-                        
-                        if (data.error) {
-                            statusDiv.innerHTML += `<br>Error: ${data.error}`;
+                        // Check if it's rate limited
+                        if (data.error && data.error.includes("429 Too Many Requests")) {
+                            statusDiv.className = 'status-indicator rate-limited';
+                            statusDiv.innerHTML = 'Bot is rate limited by Discord API ⚠️';
+                            statusDiv.innerHTML += '<br><div class="alert alert-warning mt-2">The Discord API has temporarily rate limited our bot. The web interface will continue to function normally. Bot functionality will resume automatically when the rate limit expires.</div>';
+                            
+                            // Extract retry time if available
+                            const retryMatch = data.error.match(/retry_after=(\d+\.\d+)/);
+                            if (retryMatch) {
+                                const retrySeconds = Math.ceil(parseFloat(retryMatch[1]));
+                                statusDiv.innerHTML += `<br>Retry available in approximately ${retrySeconds} seconds`;
+                            }
+                        } else {
+                            statusDiv.className = 'status-indicator stopped';
+                            statusDiv.innerHTML = 'Bot is not running ❌';
+                            
+                            if (data.error) {
+                                statusDiv.innerHTML += `<br>Error: ${data.error}`;
+                            }
                         }
                     }
                 })

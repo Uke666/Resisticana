@@ -52,6 +52,11 @@ body {
     color: white;
 }
 
+.rate-limited {
+    background-color: var(--warning-color);
+    color: white;
+}
+
 /* Card enhancements */
 .card {
     background-color: var(--darker-bg);

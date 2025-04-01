@@ -34,6 +34,12 @@ def start_bot_thread():
         logging.error(bot_status["error"])
         return
     
+    # Check if we're in a rate-limited state
+    if bot_status.get("error") and "429 Too Many Requests" in bot_status["error"]:
+        # Don't attempt to reconnect if rate limited
+        logging.warning("Discord API rate limit in effect. Not attempting reconnection.")
+        return
+    
     try:
         bot_status["is_running"] = True
         bot_status["start_time"] = time.time()
@@ -63,6 +69,19 @@ def start():
     if bot_status["is_running"]:
         return jsonify({"success": False, "error": "Bot is already running"})
     
+    # Check if we're rate limited
+    if bot_status.get("error") and "429 Too Many Requests" in bot_status["error"]:
+        # Get rate limit info if available in the error
+        import re
+        retry_match = re.search(r'retry_after=(\d+\.\d+)', bot_status["error"])
+        retry_time = float(retry_match.group(1)) if retry_match else 60
+        
+        return jsonify({
+            "success": False, 
+            "error": f"Discord API rate limit in effect. Please try again in {int(retry_time)} seconds.",
+            "retry_after": retry_time
+        })
+    
     # Start the bot in a new thread
     bot_thread = threading.Thread(target=start_bot_thread)
     bot_thread.daemon = True
@@ -74,6 +93,19 @@ def start():
 def restart():
     """Restart the bot to apply new settings or tokens."""
     global bot_status
+    
+    # Check if we're rate limited
+    if bot_status.get("error") and "429 Too Many Requests" in bot_status["error"]:
+        # Get rate limit info if available in the error
+        import re
+        retry_match = re.search(r'retry_after=(\d+\.\d+)', bot_status["error"])
+        retry_time = float(retry_match.group(1)) if retry_match else 60
+        
+        return jsonify({
+            "success": False, 
+            "error": f"Discord API rate limit in effect. Please try again in {int(retry_time)} seconds.",
+            "retry_after": retry_time
+        })
     
     # Mark the bot as not running
     bot_status["is_running"] = False
@@ -600,11 +632,13 @@ if __name__ == "__main__":
     os.makedirs('static/css', exist_ok=True)
     os.makedirs('static/js', exist_ok=True)
     
-    # Start bot thread automatically
-    if not bot_status["is_running"]:
+    # Check if Discord bot is rate limited before attempting to start
+    if not bot_status["is_running"] and not (bot_status.get("error") and "429 Too Many Requests" in bot_status.get("error", "")):
         bot_thread = threading.Thread(target=start_bot_thread)
         bot_thread.daemon = True
         bot_thread.start()
+    elif bot_status.get("error") and "429 Too Many Requests" in bot_status.get("error", ""):
+        logging.warning("Not starting Discord bot due to rate limit. Web application will still function.")
     
     # Run Flask app
     app.run(host="0.0.0.0", port=5000, debug=True)
