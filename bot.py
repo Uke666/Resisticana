@@ -174,10 +174,10 @@ async def help_command(ctx, category=None):
                 ]
             elif cat == "moderation":
                 commands = [
-                    ("timeout <@user>", "Timeout a user based on your role permissions"),
-                    ("timeout_cost", "Check the cost of using the timeout command"),
-                    ("timeout_limit", "Check your timeout duration limit based on your roles"),
-                    ("timeout_history [@user]", "View timeout history for yourself or another user")
+                    ("bomb <@user>", "Bomb a user based on your role permissions"),
+                    ("bombcost", "Check the cost of using the bomb command"),
+                    ("bomblimit", "Check your bomb duration limit based on your roles"),
+                    ("bombhistory [@user]", "View bomb history for yourself or another user")
                 ]
             elif cat == "general":
                 commands = [
