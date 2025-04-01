@@ -627,11 +627,7 @@ class Company(BaseCog):
             description=f"{interaction.user.display_name} is inviting you to join '{company_data['name']}'!",
             color=discord.Color.gold()
         )
-        embed.add_field(
-            name="Instructions", 
-            value=f"To accept this invitation, type `!invite {interaction.user.display_name}` in the chat and react with ✅.", 
-            inline=False
-        )
+        embed.add_field(name="React to Accept", value="✅ - Accept invitation\n❌ - Decline invitation", inline=False)
         
         # Bonus notification for reaching 6 members
         if current_member_count == 5:  # Will become 6 members when accepted
@@ -641,11 +637,53 @@ class Company(BaseCog):
                 inline=False
             )
         
-        # Send invitation
-        await interaction.response.send_message(
-            f"{user.mention} has been invited to join your company!",
-            embed=embed
-        )
+        # Send invitation and defer response
+        await interaction.response.defer()
+        message = await interaction.channel.send(f"{user.mention}", embed=embed)
+        
+        # Add reactions
+        await message.add_reaction("✅")
+        await message.add_reaction("❌")
+        
+        def check(reaction, react_user):
+            return react_user.id == user.id and str(reaction.emoji) in ["✅", "❌"] and reaction.message.id == message.id
+            
+        try:
+            reaction, react_user = await interaction.client.wait_for('reaction_add', timeout=300.0, check=check)
+            
+            if str(reaction.emoji) == "✅":
+                # Accept invitation
+                result = self.db.add_employee_to_company(company_data["id"], user.id)
+                
+                if result["success"]:
+                    # Check if this pushed the company above 5 members
+                    if result.get("unlocked_bonus", False):
+                        # Calculate bonus based on creator role
+                        creator_role_id = company_data.get("creator_role_id")
+                        if creator_role_id == 1352694494797234237:  # level 35
+                            base_bonus = 25
+                        elif creator_role_id == 1352694494813749299:  # level 50
+                            base_bonus = 50
+                        else:
+                            base_bonus = 10
+                            
+                        bonus_message = (
+                            f"🎉 **BONUS UNLOCKED!** 🎉\n"
+                            f"{user.mention} has joined {company_data['name']}! "
+                            f"The company now has 6 members and qualifies for the +$25 bonus per active member!\n"
+                            f"New activity bonus: ${base_bonus + 25} per active member per hour"
+                        )
+                        await interaction.followup.send(bonus_message)
+                    else:
+                        await interaction.followup.send(f"{user.mention} has joined {company_data['name']}!")
+                else:
+                    await interaction.followup.send(f"Error: {result['message']}")
+            else:
+                # Decline invitation
+                await interaction.followup.send(f"{user.mention} declined the invitation.")
+                
+        except asyncio.TimeoutError:
+            await interaction.followup.send(f"The invitation to {user.mention} has expired.")
     
     @app_commands.command(name="leave", description="Leave your current company")
     async def leave_company_slash(self, interaction: discord.Interaction):
