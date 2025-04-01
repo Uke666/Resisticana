@@ -917,7 +917,46 @@ class Economy(BaseCog):
         request_id="The ID of the request to reject"
     )
     async def reject_request_slash(self, interaction: discord.Interaction, request_id: int):
-        await self.reject_request_slash(interaction, request_id)
+        """Slash command to reject a money request."""
+        user_id = interaction.user.id
+        
+        # Get the request
+        request = self.db.get_request_by_id(request_id)
+        
+        if not request:
+            await interaction.response.send_message(
+                embed=self.error_embed("Request not found!"),
+                ephemeral=True
+            )
+            return
+            
+        # Check if the user is the recipient of this request
+        if request["recipient_id"] != user_id:
+            await interaction.response.send_message(
+                embed=self.error_embed("You can only reject requests sent to you!"),
+                ephemeral=True
+            )
+            return
+            
+        # Check if the request is still pending
+        if request["status"] != "pending":
+            await interaction.response.send_message(
+                embed=self.error_embed("This request has already been resolved!"),
+                ephemeral=True
+            )
+            return
+            
+        # Resolve the request (decline)
+        result = self.db.resolve_money_request(request_id, accept=False)
+        
+        if result["success"]:
+            # Create embed for recipient (current user)
+            recipient_embed = discord.Embed(
+                title="Request Rejected",
+                description=f"You've rejected the money request #{request_id}.",
+                color=discord.Color.red()
+            )
+            await interaction.response.send_message(embed=recipient_embed, ephemeral=True)
 
     @commands.command(name="history", aliases=["transactions"])
     async def transaction_history(self, ctx, limit: int = 5):
@@ -983,13 +1022,6 @@ class Economy(BaseCog):
             )
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @app_commands.command(name="reject", description="Reject a money request")
-    @app_commands.describe(
-        request_id="The ID of the request to reject"
-    )
-    async def reject_request_slash(self, interaction: discord.Interaction, request_id: int):
-        await self.reject_request_slash(interaction, request_id)
 
     @commands.command(name="questcomplete")
     async def questcomplete(self, ctx):
