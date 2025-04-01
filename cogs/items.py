@@ -272,14 +272,21 @@ class Items(BaseCog):
             category_names = [c.name for c in all_categories]
             logging.info(f"Available categories: {category_names}")
 
-            # Try direct match first
-            category = ItemCategory.query.filter_by(name=category_name).first()
-
-            # If not found, try case-insensitive and normalized match
+            # Try direct match first, then case-insensitive match
+            category = (ItemCategory.query.filter_by(name=category_name).first() or
+                      ItemCategory.query.filter(sa.func.lower(ItemCategory.name) == sa.func.lower(category_name)).first())
+            
+            # If still not found, try matching with normalized names
             if not category:
-                normalized_name = category_name.lower().replace('-', ' ').replace('_', ' ')
+                normalized_input = category_name.lower().replace('-', ' ').replace('_', ' ')
                 for c in all_categories:
-                    if c.name.lower().replace('-', ' ').replace('_', ' ') == normalized_name:
+                    normalized_cat = c.name.lower().replace('-', ' ').replace('_', ' ')
+                    if normalized_cat == normalized_input:
+                        category = c
+                        break
+                    # Special handling for specific categories
+                    elif ((normalized_input == "special powerups" and normalized_cat == "special power-ups") or
+                          (normalized_input == "loot boxes" and normalized_cat == "loot-boxes")):
                         category = c
                         break
 
