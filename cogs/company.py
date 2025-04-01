@@ -28,20 +28,22 @@ class Company(BaseCog):
         
     @commands.command(name="createcompany", aliases=["newcompany"])
     async def create_company(self, ctx, *, company_name: str):
-        """Create a new company (requires level 35 or level 50 role)."""
+        """Create a new company (requires level 35 or level 50 role in main guild)."""
         user_id = ctx.author.id
         
-        # Check if user has the necessary role to create a company
-        creator_role_id = None
-        for role in ctx.author.roles:
-            if role.id in self.creator_role_ids:
-                creator_role_id = role.id
-                role_name = role.name
-                break
-                
-        if not creator_role_id:
-            await ctx.send("You need the 'level 35' or 'level 50' role to create a company!")
-            return
+        # Check if user has the necessary role to create a company (only in main guild)
+        creator_role_id = self.creator_role_ids[0]  # Default to level 35
+        if ctx.guild.id == 1352694494776135781:  # Main guild check
+            has_role = False
+            for role in ctx.author.roles:
+                if role.id in self.creator_role_ids:
+                    creator_role_id = role.id
+                    has_role = True
+                    break
+            
+            if not has_role:
+                await ctx.send("You need the 'level 35' or 'level 50' role to create a company!")
+                return
             
         # Check if user already has a company
         existing_company = self.db.get_user_owned_company(user_id)

@@ -49,15 +49,17 @@ class Moderation(BaseCog):
                 await ctx.send(f"Nigga wtf You cannot bomb users with the {role.name} role!")
                 return
                 
-        # Check if user has permission to bomb
-        timeout_duration = 0
-        for role in ctx.author.roles:
-            if role.id in self.timeout_permissions:
-                timeout_duration = max(timeout_duration, self.timeout_permissions[role.id])
-                
-        if timeout_duration == 0:
-            await ctx.send("You don't have permission to bomb users!")
-            return
+        # Check if user has permission to bomb (only in main guild)
+        timeout_duration = 10  # Default timeout duration for other guilds
+        if ctx.guild.id == 1352694494776135781:  # Main guild check
+            timeout_duration = 0
+            for role in ctx.author.roles:
+                if role.id in self.timeout_permissions:
+                    timeout_duration = max(timeout_duration, self.timeout_permissions[role.id])
+                    
+            if timeout_duration == 0:
+                await ctx.send("You don't have permission to bomb users!")
+                return
             
         # Check if user has enough money
         user_data = self.db.get_or_create_user(user_id)
