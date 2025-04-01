@@ -28,7 +28,7 @@ async def on_ready():
         format='%(asctime)s %(levelname)s %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
-    
+
     logging.info(f'Bot logged in as {bot.user.name} (ID: {bot.user.id})')
 
     # Load cogs (extensions)
@@ -40,7 +40,7 @@ async def on_ready():
     # Sync slash commands with Discord
     try:
         logging.info("Syncing slash commands...")
-        
+
         # First, sync commands for each cog individually
         for cog_name in bot.cogs:
             cog = bot.get_cog(cog_name)
@@ -50,7 +50,7 @@ async def on_ready():
                     logging.info(f"Successfully synced {cog_name} commands")
                 except Exception as e:
                     logging.error(f"Error syncing {cog_name} commands: {e}")
-        
+
         # Then, sync the global command tree
         commands = await bot.tree.sync()
         logging.info(f"Successfully synced {len(commands)} slash commands!")
@@ -113,11 +113,11 @@ async def help_command(ctx, category=None):
     """Display a helpful guide to bot commands."""
     prefix = ctx.prefix
 
-    # Create base embed with fancy styling
+    # Create base embed
     embed = discord.Embed(
-        title="🤖 Discord Economy Bot - Help Menu",
-        description=f"```ini\n[Use !help <category> to view specific commands]\n[All commands are also available as slash commands!]```",
-        color=discord.Color.blurple()
+        title="Discord Economy Bot - Help Menu",
+        description=f"Use `{prefix}help <category>` to view specific commands.\nAll commands are also available as slash commands!",
+        color=discord.Color.blue()
     )
 
     # Add footer with version info
@@ -127,37 +127,37 @@ async def help_command(ctx, category=None):
     if not category:
         embed.add_field(
             name="🏦 Economy",
-            value=f"```ini\n!help economy - Money, bank, and daily rewards```",
+            value=f"`{prefix}help economy` - Money, bank, and daily rewards",
             inline=False
         )
         embed.add_field(
             name="🏢 Company",
-            value=f"```ini\n!help company - Company creation and management```",
+            value=f"`{prefix}help company` - Company creation and management",
             inline=False
         )
         embed.add_field(
             name="🛡️ Moderation", 
-            value=f"```ini\n!help moderation - Role-based timeout commands```",
+            value=f"`{prefix}help moderation` - Role-based timeout commands",
             inline=False
         )
         embed.add_field(
             name="📊 General",
-            value=f"```ini\n!help general - General utility commands```",
+            value=f"`{prefix}help general` - General utility commands",
             inline=False
         )
         embed.add_field(
             name="🎲 Bets",
-            value=f"```ini\n!help bets - AI-powered betting system```",
+            value=f"`{prefix}help bets` - AI-powered betting system",
             inline=False
         )
         embed.add_field(
             name="🎁 Items",
-            value=f"```ini\n!help items - Shop and inventory system```",
+            value=f"`{prefix}help items` - Shop and inventory system",
             inline=False
         )
         embed.add_field(
             name="📈 Events",
-            value=f"```ini\n!help events - Economic events affecting the economy```",
+            value=f"`{prefix}help events` - Economic events affecting the economy",
             inline=False
         )
 
@@ -165,8 +165,9 @@ async def help_command(ctx, category=None):
     elif category.lower() == "economy":
         embed.title = "💰 Economy Commands"
         embed.description = "```ini\n[Commands for managing your money and earning rewards]```"
+        embed.color = discord.Color.gold()
 
-        embed.add_field(name=f"🏦 {prefix}balance", value="```ini\n[Check your current balance]```", inline=False)
+        embed.add_field(name=f"💳 {prefix}balance", value="```ini\n[Check your current balance]```", inline=False)
         embed.add_field(name=f"🎁 {prefix}daily", value="```ini\n[Claim your daily reward of $100]```", inline=False)
         embed.add_field(name=f"💳 {prefix}deposit <amount>", value="```ini\n[Deposit money to your bank]```", inline=False)
         embed.add_field(name=f"💸 {prefix}withdraw <amount>", value="```ini\n[Withdraw money from your bank]```", inline=False)
@@ -182,6 +183,7 @@ async def help_command(ctx, category=None):
     elif category.lower() == "company":
         embed.title = "🏢 Company Commands"
         embed.description = "```ini\n[Commands for managing companies and employees]```"
+        embed.color = discord.Color.gold()
 
         embed.add_field(name=f"🎯 {prefix}createcompany <name>", value="```ini\n[Create a new company (requires higher role)]```", inline=False)
         embed.add_field(name=f"ℹ️ {prefix}company [name]", value="```ini\n[Display info about your company or another company]```", inline=False)
@@ -195,6 +197,7 @@ async def help_command(ctx, category=None):
     elif category.lower() == "moderation":
         embed.title = "🛡️ Moderation Commands"
         embed.description = "```ini\n[Commands for moderating users with timeouts]```"
+        embed.color = discord.Color.gold()
 
         embed.add_field(name=f"⏰ {prefix}timeout <@user>", value="```ini\n[Timeout a user based on your role permissions]```", inline=False)
         embed.add_field(name=f"💰 {prefix}timeout_cost", value="```ini\n[Check the cost of using the timeout command]```", inline=False)
@@ -204,32 +207,35 @@ async def help_command(ctx, category=None):
     # Betting commands
     elif category.lower() == "bets":
         embed.title = "Betting Commands"
-        embed.description = "Commands for AI-powered betting system."
+        embed.description = "```ini\n[Commands for AI-powered betting system]```"
+        embed.color = discord.Color.gold()
 
-        embed.add_field(name=f"{prefix}createbet <event_description>", value="Create a new betting event with AI-generated options", inline=False)
+        embed.add_field(name=f"{prefix}createbet <event_description>", value="```ini\n[Create a new betting event with AI-generated options]```", inline=False)
         embed.add_field(name=f"{prefix}sportsbet <description> <end_hours> <option1> <option2> [option3] [option4]", 
-                       value="Create a sports bet that will be automatically resolved", inline=False)
-        embed.add_field(name=f"{prefix}placebet <bet_id> <option> <amount>", value="Place a bet on an event", inline=False)
-        embed.add_field(name=f"{prefix}activebets", value="View all active betting events", inline=False)
-        embed.add_field(name=f"{prefix}pastbets [limit]", value="View past resolved betting events", inline=False)
-        embed.add_field(name=f"{prefix}mybet <bet_id>", value="View your bet on an event", inline=False)
-        embed.add_field(name=f"{prefix}cancelbet <bet_id>", value="Cancel your bet and get a refund", inline=False)
-        embed.add_field(name=f"{prefix}resolvebet <bet_id> <winning_option>", value="Admin only: Manually resolve a bet", inline=False)
+                       value="```ini\n[Create a sports bet that will be automatically resolved]```", inline=False)
+        embed.add_field(name=f"{prefix}placebet <bet_id> <option> <amount>", value="```ini\n[Place a bet on an event]```", inline=False)
+        embed.add_field(name=f"{prefix}activebets", value="```ini\n[View all active betting events]```", inline=False)
+        embed.add_field(name=f"{prefix}pastbets [limit]", value="```ini\n[View past resolved betting events]```", inline=False)
+        embed.add_field(name=f"{prefix}mybet <bet_id>", value="```ini\n[View your bet on an event]```", inline=False)
+        embed.add_field(name=f"{prefix}cancelbet <bet_id>", value="```ini\n[Cancel your bet and get a refund]```", inline=False)
+        embed.add_field(name=f"{prefix}resolvebet <bet_id> <winning_option>", value="```ini\n[Admin only: Manually resolve a bet]```", inline=False)
 
     # General commands
     elif category.lower() == "general":
         embed.title = "📊 General Commands"
         embed.description = "```ini\n[General utility commands]```"
+        embed.color = discord.Color.gold()
 
         embed.add_field(name=f"❓ {prefix}help [category]", value="```ini\n[Display this help menu]```", inline=False)
         embed.add_field(name=f"🏓 {prefix}ping", value="```ini\n[Check the bot's response time]```", inline=False)
         embed.add_field(name=f"ℹ️ {prefix}info", value="```ini\n[Display information about the bot]```", inline=False)
-        
+
     # Items commands
     elif category.lower() == "items":
         embed.title = "🎁 Items and Shop Commands"
         embed.description = "```ini\n[Commands for browsing the shop and managing your inventory]```"
-        
+        embed.color = discord.Color.gold()
+
         embed.add_field(name=f"🛍️ {prefix}shop [category]", value="```ini\n[Browse the item shop or specific category]```", inline=False)
         embed.add_field(name=f"💰 {prefix}buy <item_id>", value="```ini\n[Buy an item from the shop]```", inline=False)
         embed.add_field(name=f"🎒 {prefix}inventory", value="```ini\n[View your inventory]```", inline=False)
@@ -238,17 +244,18 @@ async def help_command(ctx, category=None):
         embed.add_field(name=f"➕ {prefix}additem <name> <price> <category> <description>", value="```ini\n[Admin only: Add a new item to the shop]```", inline=False)
         embed.add_field(name=f"📁 {prefix}addcategory <name> <description>", value="```ini\n[Admin only: Add a new item category]```", inline=False)
         embed.add_field(name=f"➖ {prefix}removeitem <item_id>", value="```ini\n[Admin only: Remove an item from the shop]```", inline=False)
-    
+
     # Events commands
     elif category.lower() == "events":
         embed.title = "Economic Events Commands"
-        embed.description = "Commands for interacting with dynamic economic events."
-        
-        embed.add_field(name=f"{prefix}events", value="View current active economic events", inline=False)
-        embed.add_field(name=f"{prefix}event_info <event_id>", value="Get details about a specific economic event", inline=False)
-        embed.add_field(name=f"{prefix}generate_event", value="Admin only: Force generate a new economic event", inline=False)
-        embed.add_field(name=f"{prefix}end_event <event_id>", value="Admin only: End an active economic event", inline=False)
-        
+        embed.description = "```ini\n[Commands for interacting with dynamic economic events.]```"
+        embed.color = discord.Color.gold()
+
+        embed.add_field(name=f"{prefix}events", value="```ini\n[View current active economic events]```", inline=False)
+        embed.add_field(name=f"{prefix}event_info <event_id>", value="```ini\n[Get details about a specific economic event]```", inline=False)
+        embed.add_field(name=f"{prefix}generate_event", value="```ini\n[Admin only: Force generate a new economic event]```", inline=False)
+        embed.add_field(name=f"{prefix}end_event <event_id>", value="```ini\n[Admin only: End an active economic event]```", inline=False)
+
     else:
         embed.title = "Unknown Category"
         embed.description = f"Category '{category}' not found. Use `{prefix}help` to see available categories."
@@ -382,12 +389,12 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
         embed.add_field(name="/help [category]", value="Display this help menu", inline=False)
         embed.add_field(name="/ping", value="Check the bot's response time", inline=False)
         embed.add_field(name="/info", value="Display information about the bot", inline=False)
-        
+
     # Items commands
     elif category.lower() == "items":
         embed.title = "Items and Shop Commands"
         embed.description = "Commands for browsing the shop and managing your inventory."
-        
+
         embed.add_field(name="/shop [category]", value="Browse the item shop or specific category", inline=False)
         embed.add_field(name="/buy item_id:<id>", value="Buy an item from the shop", inline=False)
         embed.add_field(name="/inventory", value="View your inventory", inline=False)
@@ -396,12 +403,12 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
         embed.add_field(name="/additem name:<name> price:<amount> category:<cat> description:<desc>", value="Admin only: Add a new item to the shop", inline=False)
         embed.add_field(name="/addcategory name:<name> description:<desc>", value="Admin only: Add a new item category", inline=False)
         embed.add_field(name="/removeitem item_id:<id>", value="Admin only: Remove an item from the shop", inline=False)
-    
+
     # Events commands
     elif category.lower() == "events":
         embed.title = "Economic Events Commands"
         embed.description = "Commands for interacting with dynamic economic events."
-        
+
         embed.add_field(name="/events", value="View current active economic events", inline=False)
         embed.add_field(name="/event_info event_id:<id>", value="Get details about a specific economic event", inline=False)
         embed.add_field(name="/generate_event", value="Admin only: Force generate a new economic event", inline=False)
@@ -447,7 +454,6 @@ async def info(ctx):
 • AI-generated quests for earning money
 • Role-based timeout system
 • Item shop and inventory system
-• AI-powered betting system
 • Dynamic economic events
     """, inline=False)
 
@@ -476,7 +482,6 @@ async def info_slash(interaction: discord.Interaction):
 • Role-based timeout system
 • Item shop and inventory system
 • Dynamic economic events
-• AI-powered betting system
     """, inline=False)
 
     embed.set_footer(text=f"Made with ❤️ for Discord")
@@ -490,7 +495,7 @@ async def sync_commands(ctx):
     """Manually sync slash commands (admin only)."""
     try:
         logging.info(f"Admin {ctx.author.name} manually syncing slash commands")
-        
+
         # First sync individual cogs (which may add commands to the tree)
         for cog_name in bot.cogs:
             cog = bot.get_cog(cog_name)
@@ -502,7 +507,7 @@ async def sync_commands(ctx):
                 except Exception as e:
                     logging.error(f"Error syncing {cog_name} commands: {e}")
                     await ctx.send(f"❌ Error syncing {cog_name} commands: {e}")
-        
+
         # Then sync the global command tree
         bot.tree.clear_commands(guild=None)
         synced = await bot.tree.sync()
@@ -518,10 +523,10 @@ async def sync_commands_slash(interaction: discord.Interaction):
     """Slash command for manually syncing commands."""
     try:
         logging.info(f"Admin {interaction.user.name} manually syncing slash commands")
-        
+
         # First sync individual cogs (which may add commands to the tree)
         await interaction.response.send_message("🔄 Syncing commands...", ephemeral=True)
-        
+
         for cog_name in bot.cogs:
             cog = bot.get_cog(cog_name)
             if hasattr(cog, 'sync_slash_commands'):
@@ -532,7 +537,7 @@ async def sync_commands_slash(interaction: discord.Interaction):
                 except Exception as e:
                     logging.error(f"Error syncing {cog_name} commands: {e}")
                     await interaction.followup.send(f"❌ Error syncing {cog_name} commands: {e}", ephemeral=True)
-        
+
         # Then sync the global command tree
         bot.tree.clear_commands(guild=None)
         synced = await bot.tree.sync()
@@ -566,7 +571,7 @@ def run_bot(token):
     """Run the bot with the given token."""
     import functools
     from app import app
-    
+
     # Create a decorator to handle Flask application context
     def with_app_context(func):
         @functools.wraps(func)
@@ -574,9 +579,9 @@ def run_bot(token):
             with app.app_context():
                 return await func(*args, **kwargs)
         return wrapper
-    
+
     # Apply the decorator to command invoke method
     original_invoke = bot.invoke
     bot.invoke = with_app_context(original_invoke)
-    
+
     bot.run(token)
