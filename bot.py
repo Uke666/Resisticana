@@ -130,7 +130,7 @@ async def help_command(ctx, category=None):
         embed.color = discord.Color.blue()
 
         desc_text = f"Use `{prefix}help <category>` to view specific commands.\nAll commands are also available as slash commands!"
-        
+
         categories = [
             ("🏦", "Economy", f"`{prefix}help economy`", "Money, bank, and daily rewards"),
             ("🏢", "Company", f"`{prefix}help company`", "Company creation and management"), 
@@ -152,97 +152,168 @@ async def help_command(ctx, category=None):
     # Economy commands
     elif category.lower() == "economy":
         embed.title = "💰 Economy Commands"
-        embed.description = "```ini\n[Commands for managing your money and earning rewards]```"
+        embed.description = "Commands for managing your money and earning rewards"
         embed.color = discord.Color.gold()
 
-        embed.add_field(name=f"💳 {prefix}balance", value="```ini\n[Check your current balance]```", inline=False)
-        embed.add_field(name=f"🎁 {prefix}daily", value="```ini\n[Claim your daily reward of $100]```", inline=False)
-        embed.add_field(name=f"💳 {prefix}deposit <amount>", value="```ini\n[Deposit money to your bank]```", inline=False)
-        embed.add_field(name=f"💸 {prefix}withdraw <amount>", value="```ini\n[Withdraw money from your bank]```", inline=False)
-        embed.add_field(name=f"📤 {prefix}transfer <@user> <amount>", value="```ini\n[Send money to another user]```", inline=False)
-        embed.add_field(name=f"📥 {prefix}request <@user> <amount> [reason]", value="```ini\n[Request money from another user]```", inline=False)
-        embed.add_field(name=f"📋 {prefix}requests", value="```ini\n[View your pending money requests]```", inline=False)
-        embed.add_field(name=f"❌ {prefix}reject <request_id>", value="```ini\n[Reject a money request]```", inline=False)
-        embed.add_field(name=f"⚔️ {prefix}quest", value="```ini\n[Get a random quest to earn money]```", inline=False)
-        embed.add_field(name=f"🦹 {prefix}rob <@user>", value="```ini\n[Attempt to rob another user (requires 5+ people)]```", inline=False)
-        embed.add_field(name=f"🏆 {prefix}leaderboard", value="```ini\n[Display the richest users on the server]```", inline=False)
+        commands = f"""
+!help economy - Money, bank, and daily rewards
+
+💳 Economy
+!balance - Check your current balance
+!daily - Claim your daily reward of $100
+!deposit <amount> - Deposit money to your bank 
+!withdraw <amount> - Withdraw money from your bank
+
+📤 Transfers  
+!transfer <@user> <amount> - Send money to another user
+!request <@user> <amount> [reason] - Request money from another user
+!requests - View your pending money requests
+!reject <request_id> - Reject a money request
+
+💰 Activities
+!quest - Get a random quest to earn money
+!rob <@user> - Attempt to rob another user (requires 5+ people)
+!leaderboard - Display the richest users on the server
+
+All commands are also available as slash commands!"""
+
+        embed.add_field(name="", value=commands, inline=False)
 
     # Company commands
     elif category.lower() == "company":
-        embed.title = "🏢 Company Commands"
-        embed.description = "```ini\n[Commands for managing companies and employees]```"
+        embed.title = "🏢 Company Commands" 
+        embed.description = "Commands for managing companies and employees"
         embed.color = discord.Color.gold()
 
-        embed.add_field(name=f"🎯 {prefix}createcompany <name>", value="```ini\n[Create a new company (requires higher role)]```", inline=False)
-        embed.add_field(name=f"ℹ️ {prefix}company [name]", value="```ini\n[Display info about your company or another company]```", inline=False)
-        embed.add_field(name=f"📨 {prefix}invite <@user>", value="```ini\n[Invite a user to your company]```", inline=False)
-        embed.add_field(name=f"🚪 {prefix}leave", value="```ini\n[Leave your current company]```", inline=False)
-        embed.add_field(name=f"👢 {prefix}kick <@user>", value="```ini\n[Kick a member from your company (owner only)]```", inline=False)
-        embed.add_field(name=f"💥 {prefix}disband", value="```ini\n[Disband your company as the owner]```", inline=False)
-        embed.add_field(name=f"📑 {prefix}companies", value="```ini\n[List all companies on the server]```", inline=False)
+        commands = f"""
+!help company - Company creation and management
 
-    # Moderation commands
+👑 Management
+!createcompany <name> - Create a new company (requires higher role)
+!company [name] - Display info about your company or another company
+!companies - List all companies on the server
+
+👥 Members
+!invite <@user> - Invite a user to your company
+!leave - Leave your current company
+!kick <@user> - Kick a member from your company (owner only)
+!disband - Disband your company as the owner
+
+All commands are also available as slash commands!"""
+
+        embed.add_field(name="", value=commands, inline=False)
+
+    # Moderation commands  
     elif category.lower() == "moderation":
         embed.title = "🛡️ Moderation Commands"
-        embed.description = "```ini\n[Commands for moderating users with timeouts]```"
+        embed.description = "Commands for moderating users with timeouts"
         embed.color = discord.Color.gold()
 
-        embed.add_field(name=f"⏰ {prefix}timeout <@user>", value="```ini\n[Timeout a user based on your role permissions]```", inline=False)
-        embed.add_field(name=f"💰 {prefix}timeout_cost", value="```ini\n[Check the cost of using the timeout command]```", inline=False)
-        embed.add_field(name=f"⚖️ {prefix}timeout_limit", value="```ini\n[Check your timeout duration limit based on your roles]```", inline=False)
-        embed.add_field(name=f"📜 {prefix}timeout_history [@user]", value="```ini\n[View timeout history for yourself or another user]```", inline=False)
+        commands = f"""
+!help moderation - Role-based timeout commands
 
-    # Betting commands
-    elif category.lower() == "bets":
-        embed.title = "Betting Commands"
-        embed.description = "```ini\n[Commands for AI-powered betting system]```"
-        embed.color = discord.Color.gold()
+⚔️ Moderation
+!timeout <@user> - Timeout a user based on your role permissions
+!timeout_cost - Check the cost of using the timeout command
+!timeout_limit - Check your timeout duration limit based on your roles
+!timeout_history [@user] - View timeout history for yourself or another user
 
-        embed.add_field(name=f"{prefix}createbet <event_description>", value="```ini\n[Create a new betting event with AI-generated options]```", inline=False)
-        embed.add_field(name=f"{prefix}sportsbet <description> <end_hours> <option1> <option2> [option3] [option4]", 
-                       value="```ini\n[Create a sports bet that will be automatically resolved]```", inline=False)
-        embed.add_field(name=f"{prefix}placebet <bet_id> <option> <amount>", value="```ini\n[Place a bet on an event]```", inline=False)
-        embed.add_field(name=f"{prefix}activebets", value="```ini\n[View all active betting events]```", inline=False)
-        embed.add_field(name=f"{prefix}pastbets [limit]", value="```ini\n[View past resolved betting events]```", inline=False)
-        embed.add_field(name=f"{prefix}mybet <bet_id>", value="```ini\n[View your bet on an event]```", inline=False)
-        embed.add_field(name=f"{prefix}cancelbet <bet_id>", value="```ini\n[Cancel your bet and get a refund]```", inline=False)
-        embed.add_field(name=f"{prefix}resolvebet <bet_id> <winning_option>", value="```ini\n[Admin only: Manually resolve a bet]```", inline=False)
+All commands are also available as slash commands!"""
+
+        embed.add_field(name="", value=commands, inline=False)
 
     # General commands
     elif category.lower() == "general":
         embed.title = "📊 General Commands"
-        embed.description = "```ini\n[General utility commands]```"
+        embed.description = "General utility commands"
         embed.color = discord.Color.gold()
 
-        embed.add_field(name=f"❓ {prefix}help [category]", value="```ini\n[Display this help menu]```", inline=False)
-        embed.add_field(name=f"🏓 {prefix}ping", value="```ini\n[Check the bot's response time]```", inline=False)
-        embed.add_field(name=f"ℹ️ {prefix}info", value="```ini\n[Display information about the bot]```", inline=False)
+        commands = f"""
+!help general - General utility commands
+
+📋 General
+!help [category] - Display this help menu
+!ping - Check the bot's response time
+!info - Display information about the bot
+
+All commands are also available as slash commands!"""
+
+        embed.add_field(name="", value=commands, inline=False)
 
     # Items commands
     elif category.lower() == "items":
         embed.title = "🎁 Items and Shop Commands"
-        embed.description = "```ini\n[Commands for browsing the shop and managing your inventory]```"
+        embed.description = "Commands for browsing the shop and managing your inventory"
         embed.color = discord.Color.gold()
 
-        embed.add_field(name=f"🛍️ {prefix}shop [category]", value="```ini\n[Browse the item shop or specific category]```", inline=False)
-        embed.add_field(name=f"💰 {prefix}buy <item_id>", value="```ini\n[Buy an item from the shop]```", inline=False)
-        embed.add_field(name=f"🎒 {prefix}inventory", value="```ini\n[View your inventory]```", inline=False)
-        embed.add_field(name=f"📦 {prefix}use <item_id>", value="```ini\n[Use a consumable item from your inventory]```", inline=False)
-        embed.add_field(name=f"🎀 {prefix}gift <item_id> <quantity> <@user>", value="```ini\n[Gift an item to another user]```", inline=False)
-        embed.add_field(name=f"➕ {prefix}additem <name> <price> <category> <description>", value="```ini\n[Admin only: Add a new item to the shop]```", inline=False)
-        embed.add_field(name=f"📁 {prefix}addcategory <name> <description>", value="```ini\n[Admin only: Add a new item category]```", inline=False)
-        embed.add_field(name=f"➖ {prefix}removeitem <item_id>", value="```ini\n[Admin only: Remove an item from the shop]```", inline=False)
+        commands = f"""
+!help items - Shop and inventory system
+
+🛍️ Shopping
+!shop [category] - Browse the item shop or specific category
+!buy <item_id> - Buy an item from the shop
+
+📦 Inventory
+!inventory - View your inventory
+!use <item_id> - Use a consumable item from your inventory
+!gift <item_id> <quantity> <@user> - Gift an item to another user
+
+⚙️ Admin
+!additem <name> <price> <category> <description> - Add a new item to the shop
+!addcategory <name> <description> - Add a new item category
+!removeitem <item_id> - Remove an item from the shop
+
+All commands are also available as slash commands!"""
+
+        embed.add_field(name="", value=commands, inline=False)
 
     # Events commands
     elif category.lower() == "events":
-        embed.title = "Economic Events Commands"
-        embed.description = "```ini\n[Commands for interacting with dynamic economic events.]```"
+        embed.title = "📈 Economic Events Commands"
+        embed.description = "Commands for interacting with dynamic economic events"
         embed.color = discord.Color.gold()
 
-        embed.add_field(name=f"{prefix}events", value="```ini\n[View current active economic events]```", inline=False)
-        embed.add_field(name=f"{prefix}event_info <event_id>", value="```ini\n[Get details about a specific economic event]```", inline=False)
-        embed.add_field(name=f"{prefix}generate_event", value="```ini\n[Admin only: Force generate a new economic event]```", inline=False)
-        embed.add_field(name=f"{prefix}end_event <event_id>", value="```ini\n[Admin only: End an active economic event]```", inline=False)
+        commands = f"""
+!help events - Economic events affecting the economy
+
+📊 Events
+!events - View current active economic events
+!event_info <event_id> - Get details about a specific economic event
+
+⚙️ Admin
+!generate_event - Force generate a new economic event
+!end_event <event_id> - End an active economic event
+
+All commands are also available as slash commands!"""
+
+        embed.add_field(name="", value=commands, inline=False)
+
+    # Betting commands
+    elif category.lower() == "bets":
+        embed.title = "🎲 Betting Commands"
+        embed.description = "Commands for AI-powered betting system"
+        embed.color = discord.Color.gold()
+
+        commands = f"""
+!help bets - AI-powered betting system
+
+🎯 Betting
+!createbet <event_description> - Create a new betting event
+!sportsbet <hours> <option1> <option2> <description> - Create a sports bet
+!placebet <bet_id> <choice> <amount> - Place a bet on an event
+!cancelbet <bet_id> - Cancel your bet and get a refund
+
+📊 Information
+!activebets - View all active betting events
+!pastbets [limit] - View past resolved betting events
+!mybet <bet_id> - View your bet on an event
+
+⚙️ Admin
+!resolvebet <bet_id> <winner> - Manually resolve a bet
+
+All commands are also available as slash commands!"""
+
+        embed.add_field(name="", value=commands, inline=False)
 
     else:
         embed.title = "Unknown Category"
