@@ -125,41 +125,28 @@ async def help_command(ctx, category=None):
 
     # General help menu (categories)
     if not category:
-        embed.add_field(
-            name="🏦 Economy",
-            value=f"`{prefix}help economy` - Money, bank, and daily rewards",
-            inline=False
-        )
-        embed.add_field(
-            name="🏢 Company",
-            value=f"`{prefix}help company` - Company creation and management",
-            inline=False
-        )
-        embed.add_field(
-            name="🛡️ Moderation", 
-            value=f"`{prefix}help moderation` - Role-based timeout commands",
-            inline=False
-        )
-        embed.add_field(
-            name="📊 General",
-            value=f"`{prefix}help general` - General utility commands",
-            inline=False
-        )
-        embed.add_field(
-            name="🎲 Bets",
-            value=f"`{prefix}help bets` - AI-powered betting system",
-            inline=False
-        )
-        embed.add_field(
-            name="🎁 Items",
-            value=f"`{prefix}help items` - Shop and inventory system",
-            inline=False
-        )
-        embed.add_field(
-            name="📈 Events",
-            value=f"`{prefix}help events` - Economic events affecting the economy",
-            inline=False
-        )
+        embed.title = "Discord Economy Bot - Help Menu"
+        embed.description = f"Use `{prefix}help <category>` to view specific commands.\nAll commands are also available as slash commands!"
+        embed.color = discord.Color.blue()
+
+        categories = [
+            ("🏦 Economy", f"`{prefix}help economy`", "Money, bank, and daily rewards"),
+            ("🏢 Company", f"`{prefix}help company`", "Company creation and management"),
+            ("🛡️ Moderation", f"`{prefix}help moderation`", "Role-based timeout commands"),
+            ("📊 General", f"`{prefix}help general`", "General utility commands"),
+            ("🎲 Bets", f"`{prefix}help bets`", "AI-powered betting system"),
+            ("🎁 Items", f"`{prefix}help items`", "Shop and inventory system"),
+            ("📈 Events", f"`{prefix}help events`", "Economic events affecting the economy")
+        ]
+
+        for emoji_name, command, desc in categories:
+            embed.add_field(
+                name=emoji_name,
+                value=f"{command} - {desc}",
+                inline=False
+            )
+
+        embed.set_footer(text=f"Discord Economy Bot | Use {prefix}help or /help")
 
     # Economy commands
     elif category.lower() == "economy":
@@ -290,41 +277,28 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
 
     # General help menu (categories)
     if not category:
-        embed.add_field(
-            name="🏦 Economy",
-            value=f"`/help economy` - Money, bank, and daily rewards",
-            inline=False
-        )
-        embed.add_field(
-            name="🏢 Company",
-            value=f"[/help company] - Company creation and management",
-            inline=False
-        )
-        embed.add_field(
-            name="🛡️ Moderation",
-            value=f"[/help moderation] - Role-based timeout commands",
-            inline=False
-        )
-        embed.add_field(
-            name="📊 General",
-            value=f"[/help general] - General utility commands",
-            inline=False
-        )
-        embed.add_field(
-            name="🎲 Bets",
-            value=f"[/help bets] - AI-powered betting system",
-            inline=False
-        )
-        embed.add_field(
-            name="🎁 Items",
-            value=f"[/help items] - Shop and inventory system",
-            inline=False
-        )
-        embed.add_field(
-            name="📈 Events",
-            value=f"[/help events] - Economic events affecting the economy",
-            inline=False
-        )
+        embed.title = "Discord Economy Bot - Help Menu"
+        embed.description = "Use `/help category:category_name` to view specific commands.\nThese commands are also available with prefix commands!"
+        embed.color = discord.Color.blue()
+
+        categories = [
+            ("🏦 Economy", "/help economy", "Money, bank, and daily rewards"),
+            ("🏢 Company", "/help company", "Company creation and management"),
+            ("🛡️ Moderation", "/help moderation", "Role-based timeout commands"),
+            ("📊 General", "/help general", "General utility commands"),
+            ("🎲 Bets", "/help bets", "AI-powered betting system"),
+            ("🎁 Items", "/help items", "Shop and inventory system"),
+            ("📈 Events", "/help events", "Economic events affecting the economy")
+        ]
+
+        for emoji_name, command, desc in categories:
+            embed.add_field(
+                name=emoji_name,
+                value=f"`{command}` - {desc}",
+                inline=False
+            )
+
+        embed.set_footer(text=f"Discord Economy Bot | Use {prefix}help or /help")
 
     # Economy commands
     elif category.lower() == "economy":
