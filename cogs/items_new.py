@@ -34,12 +34,12 @@ class Items(BaseCog):
     @app_commands.command(name="shop", description="Browse the item shop")
     @app_commands.describe(category="Category of items to view")
     @app_commands.choices(category=[
-        app_commands.Choice(name="Collectibles", value="1"),  # Using IDs instead of names
-        app_commands.Choice(name="Power-Ups", value="2"),
-        app_commands.Choice(name="Gameplay", value="3"),
-        app_commands.Choice(name="Investments", value="4"),
-        app_commands.Choice(name="Loot Boxes", value="5"),
-        app_commands.Choice(name="Special Power-ups", value="6"),
+        app_commands.Choice(name="Collectibles", value="Collectibles"),
+        app_commands.Choice(name="Power-Ups", value="Power-Ups"),
+        app_commands.Choice(name="Gameplay", value="Gameplay"),
+        app_commands.Choice(name="Investments", value="Investments"),
+        app_commands.Choice(name="Loot Boxes", value="Loot Boxes"),
+        app_commands.Choice(name="Special Power-ups", value="Special Power-ups"),
     ])
     async def shop_slash(self, interaction: discord.Interaction, category: str = None):
         """Browse the item shop with slash command."""
@@ -47,13 +47,9 @@ class Items(BaseCog):
         if not category:
             await self.show_shop_categories_slash(interaction)
         else:
-            # If category is provided through choices, it will be the category ID
-            try:
-                category_id = int(category)
-                await self.show_category_items_by_id_slash(interaction, category_id)
-            except ValueError:
-                # Fallback to name-based lookup if ID is not a valid number
-                await self.show_category_items_slash(interaction, category)
+            # When category is provided through choices, it will be the exact name
+            # which is more reliable than trying to match by ID or case-insensitive search
+            await self.show_category_items_slash(interaction, category)
         
     async def show_shop_categories(self, ctx):
         """Show all item categories in the shop."""
@@ -255,6 +251,7 @@ class Items(BaseCog):
     async def show_category_items_slash(self, interaction: discord.Interaction, category_name):
         """Show items in a specific category (slash command version)."""
         from app import app
+        from datetime import datetime
         
         with app.app_context():
             # Log the requested category name for debugging
@@ -265,34 +262,137 @@ class Items(BaseCog):
             category_names = [c.name for c in all_categories]
             logging.info(f"Available categories: {category_names}")
             
-            # Initialize category variable
-            category = None
+            # With choices, we should have the exact category name, so do a direct lookup first
+            category = ItemCategory.query.filter_by(name=category_name).first()
+            logging.info(f"Direct exact name match result: {category}")
             
-            # Try with direct name match first for Special Power-ups and Loot Boxes specifically
-            if category_name in ["Special Power-ups", "Loot Boxes"]:
-                category = ItemCategory.query.filter_by(name=category_name).first()
-                logging.info(f"Direct match result for '{category_name}': {category}")
-                
-            # If not found or not a special case, try case-insensitive match
+            # If not found (which should be rare with choices), try case-insensitive match
             if not category:
                 category = ItemCategory.query.filter(sa.func.lower(ItemCategory.name) == category_name.lower()).first()
                 logging.info(f"Case-insensitive match result: {category}")
             
-            # If still not found, try partial match for special categories
-            if not category and ("power" in category_name.lower() or "loot" in category_name.lower()):
-                if "power" in category_name.lower():
-                    # Try to find Power-Ups or Special Power-ups
-                    category = ItemCategory.query.filter(
-                        sa.or_(
-                            ItemCategory.name == "Power-Ups",
-                            ItemCategory.name == "Special Power-ups"
+            # If still not found, which should be extremely rare with choices, look for name with spaces
+            # This specifically addresses "Special Power-ups" and "Loot Boxes" which might have space/hyphen inconsistencies
+            if not category:
+                # Try with variations of spaces, hyphens and case
+                possible_variations = [
+                    "Special Power-ups", "Special Power Ups", "Special Powerups",
+                    "Loot Boxes", "Loot-Boxes", "LootBoxes"
+                ]
+                
+                # Look for the closest match to what was requested
+                for variation in possible_variations:
+                    if variation.lower() == category_name.lower() or variation.lower().replace(" ", "").replace("-", "") == category_name.lower().replace(" ", "").replace("-", ""):
+                        category = ItemCategory.query.filter_by(name=variation).first()
+                        if category:
+                            logging.info(f"Variation match found: {variation} -> {category}")
+                            break
+            
+            # If we still don't have a category after all our attempts, notify the user
+            if not category:
+                await interaction.response.send_message(
+                    embed=self.error_embed(f"Category '{category_name}' not found."),
+                    ephemeral=True
+                )
+                return
+            
+            # Get items in this category
+            items = Item.query.filter_by(category_id=category.id).all()
+            
+            if not items:
+                await interaction.response.send_message(
+                    embed=self.error_embed(f"No items found in category '{category.name}'."),
+                    ephemeral=True
+                )
+                return
+            
+            # Create embed message
+            embed = self.create_embed(
+                f"Shop: {category.name} Items",
+                f"{category.description}\n\nClick the buttons below to purchase or go back"
+            )
+            
+            for item in items:
+                status = ""
+                if item.is_limited and item.quantity is not None:
+                    status = f" | {item.quantity} left" if item.quantity > 0 else " | **SOLD OUT**"
+                
+                consumable = " | Consumable" if item.is_consumable else ""
+                tradeable = "" if item.is_tradeable else " | Not tradeable"
+                
+                embed.add_field(
+                    name=f"ID: {item.id} - {item.name} - {item.price} coins{status}{consumable}{tradeable}",
+                    value=item.description,
+                    inline=False
+                )
+            
+            # Create buttons for actions
+            class ItemShopView(discord.ui.View):
+                def __init__(self, cog, timeout=60):
+                    super().__init__(timeout=timeout)
+                    self.cog = cog
+                
+                @discord.ui.button(label="Back to Categories", style=discord.ButtonStyle.secondary)
+                async def back_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
+                    if button_interaction.user.id != interaction.user.id:
+                        await button_interaction.response.send_message("This is not your shop menu.", ephemeral=True)
+                        return
+                    
+                    await self.cog.show_shop_categories_slash(button_interaction)
+                
+                @discord.ui.button(label="Buy an Item", style=discord.ButtonStyle.primary)
+                async def buy_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
+                    if button_interaction.user.id != interaction.user.id:
+                        await button_interaction.response.send_message("This is not your shop menu.", ephemeral=True)
+                        return
+                    
+                    # Create item selection dropdown
+                    options = []
+                    for item in items:
+                        if not (item.is_limited and item.quantity is not None and item.quantity <= 0):
+                            options.append(discord.SelectOption(
+                                label=f"{item.name} - {item.price} coins",
+                                description=item.description[:50] + "..." if len(item.description) > 50 else item.description,
+                                value=str(item.id)
+                            ))
+                    
+                    if not options:
+                        await button_interaction.response.send_message(
+                            embed=self.cog.error_embed("No items are available for purchase in this category."),
+                            ephemeral=True
                         )
-                    ).first()
-                    logging.info(f"Power-ups partial match result: {category}")
-                elif "loot" in category_name.lower():
-                    # Try to find Loot Boxes
-                    category = ItemCategory.query.filter_by(name="Loot Boxes").first()
-                    logging.info(f"Loot Boxes partial match result: {category}")
+                        return
+                    
+                    # Create and send dropdown
+                    class ItemSelect(discord.ui.Select):
+                        def __init__(self):
+                            super().__init__(
+                                placeholder="Choose an item to buy",
+                                min_values=1,
+                                max_values=1,
+                                options=options
+                            )
+                        
+                        async def callback(self, select_interaction: discord.Interaction):
+                            item_id = int(self.values[0])
+                            await self.cog.purchase_item_slash(select_interaction, item_id)
+                    
+                    class ItemSelectView(discord.ui.View):
+                        def __init__(self, timeout=60):
+                            super().__init__(timeout=timeout)
+                            self.add_item(ItemSelect())
+                    
+                    await button_interaction.response.send_message(
+                        "Select an item to purchase:",
+                        view=ItemSelectView(),
+                        ephemeral=True
+                    )
+            
+            # Send the embed with buttons
+            if interaction.response.is_done():
+                await interaction.followup.send(embed=embed, view=ItemShopView(self))
+            else:
+                await interaction.response.send_message(embed=embed, view=ItemShopView(self))
             
     async def show_category_items_by_id_slash(self, interaction: discord.Interaction, category_id: int):
         """Show items in a specific category by category ID (slash command version)."""

@@ -22,6 +22,13 @@ db = Database()
 @bot.event
 async def on_ready():
     """Event triggered when the bot is ready and connected to Discord."""
+    # Set up more detailed logging
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s %(levelname)s %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
     logging.info(f'Bot logged in as {bot.user.name} (ID: {bot.user.id})')
 
     # Load cogs (extensions)
