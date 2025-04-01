@@ -2221,6 +2221,73 @@ class Items(BaseCog):
     async def shoplist_slash(self, interaction: discord.Interaction):
         """List all shop categories and items with prices in a formatted output (slash command version)."""
         await self.list_shop_items(interaction)
+        
+    @commands.command(name="category", help="View all available shop categories")
+    async def category_prefix(self, ctx):
+        """Display all available shop categories in a formatted embed."""
+        await self.display_categories(ctx)
+        
+    @app_commands.command(name="category", description="View all available shop categories")
+    async def category_slash(self, interaction: discord.Interaction):
+        """Display all available shop categories in a formatted embed (slash command version)."""
+        await self.display_categories(interaction)
+        
+    async def display_categories(self, ctx):
+        """Display all available shop categories with descriptions and example items."""
+        from app import app
+        with app.app_context():
+            categories = ItemCategory.query.all()
+            
+            if not categories:
+                if isinstance(ctx, discord.Interaction):
+                    await ctx.response.send_message(embed=self.info_embed("Categories", "There are no categories in the shop yet."))
+                else:
+                    await ctx.send(embed=self.info_embed("Categories", "There are no categories in the shop yet."))
+                return
+            
+            embed = self.create_embed(
+                "Shop Categories", 
+                "Here are all available item categories in the shop:"
+            )
+            
+            for category in categories:
+                # Get a sample of items from this category to show prices
+                with app.app_context():
+                    items = Item.query.filter_by(category_id=category.id).limit(3).all()
+                    item_count = Item.query.filter_by(category_id=category.id).count()
+                
+                # Create sample price range text
+                price_examples = ""
+                if items:
+                    # Get price range
+                    prices = [item.price for item in items]
+                    if len(items) > 0:
+                        price_examples = "Examples: " + ", ".join([f"{item.name} (💰 {item.price})" for item in items[:3]])
+                        
+                # Create field with category info
+                value_text = f"{category.description}\n"
+                value_text += f"Items available: {item_count}\n"
+                if price_examples:
+                    value_text += f"{price_examples}\n"
+                    
+                if isinstance(ctx, discord.Interaction):
+                    value_text += f"Use `/shop {category.name}` to browse all items."
+                else:
+                    value_text += f"Use `!shop {category.name}` to browse all items."
+                
+                embed.add_field(
+                    name=f"📦 {category.name}",
+                    value=value_text,
+                    inline=False
+                )
+            
+            # Add footer with instructions
+            if isinstance(ctx, discord.Interaction):
+                embed.set_footer(text="Use /shop or /shoplist to browse all items")
+                await ctx.response.send_message(embed=embed)
+            else:
+                embed.set_footer(text="Use !shop or !shoplist to browse all items")
+                await ctx.send(embed=embed)
 
     async def list_shop_items(self, ctx):
         """Show a comprehensive list of all shop categories and their items with prices."""
@@ -2252,15 +2319,15 @@ class Items(BaseCog):
                 for item in items:
                     # Get additional properties
                     properties = {}
-                    if hasattr(item, 'properties') and item.properties:
+                    if hasattr(item, 'get_properties'):
                         try:
-                            properties = json.loads(item.properties)
+                            properties = item.get_properties() or {}
                         except:
                             properties = {}
                     
                     # Item status info
                     status_info = ""
-                    if item.is_limited:
+                    if hasattr(item, 'is_limited') and item.is_limited:
                         status_info = f" | Limited: {item.quantity_available} left" if item.quantity_available else " | SOLD OUT"
                     
                     # Consumable/tradeable flags
