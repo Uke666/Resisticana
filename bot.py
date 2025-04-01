@@ -163,43 +163,43 @@ async def help_command(ctx, category=None):
 
     # Economy commands
     elif category.lower() == "economy":
-        embed.title = "Economy Commands"
-        embed.description = "Commands for managing your money and earning rewards."
+        embed.title = "💰 Economy Commands"
+        embed.description = "```ini\n[Commands for managing your money and earning rewards]```"
 
-        embed.add_field(name=f"{prefix}balance", value="Check your current balance", inline=False)
-        embed.add_field(name=f"{prefix}daily", value="Claim your daily reward of $100", inline=False)
-        embed.add_field(name=f"{prefix}deposit <amount>", value="Deposit money to your bank", inline=False)
-        embed.add_field(name=f"{prefix}withdraw <amount>", value="Withdraw money from your bank", inline=False)
-        embed.add_field(name=f"{prefix}transfer <@user> <amount>", value="Send money to another user", inline=False)
-        embed.add_field(name=f"{prefix}request <@user> <amount> [reason]", value="Request money from another user", inline=False)
-        embed.add_field(name=f"{prefix}requests", value="View your pending money requests", inline=False)
-        embed.add_field(name=f"{prefix}reject <request_id>", value="Reject a money request", inline=False)
-        embed.add_field(name=f"{prefix}quest", value="Get a random quest to earn money", inline=False)
-        embed.add_field(name=f"{prefix}rob <@user>", value="Attempt to rob another user (requires 5+ people)", inline=False)
-        embed.add_field(name=f"{prefix}leaderboard", value="Display the richest users on the server", inline=False)
+        embed.add_field(name=f"🏦 {prefix}balance", value="```ini\n[Check your current balance]```", inline=False)
+        embed.add_field(name=f"🎁 {prefix}daily", value="```ini\n[Claim your daily reward of $100]```", inline=False)
+        embed.add_field(name=f"💳 {prefix}deposit <amount>", value="```ini\n[Deposit money to your bank]```", inline=False)
+        embed.add_field(name=f"💸 {prefix}withdraw <amount>", value="```ini\n[Withdraw money from your bank]```", inline=False)
+        embed.add_field(name=f"📤 {prefix}transfer <@user> <amount>", value="```ini\n[Send money to another user]```", inline=False)
+        embed.add_field(name=f"📥 {prefix}request <@user> <amount> [reason]", value="```ini\n[Request money from another user]```", inline=False)
+        embed.add_field(name=f"📋 {prefix}requests", value="```ini\n[View your pending money requests]```", inline=False)
+        embed.add_field(name=f"❌ {prefix}reject <request_id>", value="```ini\n[Reject a money request]```", inline=False)
+        embed.add_field(name=f"⚔️ {prefix}quest", value="```ini\n[Get a random quest to earn money]```", inline=False)
+        embed.add_field(name=f"🦹 {prefix}rob <@user>", value="```ini\n[Attempt to rob another user (requires 5+ people)]```", inline=False)
+        embed.add_field(name=f"🏆 {prefix}leaderboard", value="```ini\n[Display the richest users on the server]```", inline=False)
 
     # Company commands
     elif category.lower() == "company":
-        embed.title = "Company Commands"
-        embed.description = "Commands for managing companies and employees."
+        embed.title = "🏢 Company Commands"
+        embed.description = "```ini\n[Commands for managing companies and employees]```"
 
-        embed.add_field(name=f"{prefix}createcompany <name>", value="Create a new company (requires higher role)", inline=False)
-        embed.add_field(name=f"{prefix}company [name]", value="Display info about your company or another company", inline=False)
-        embed.add_field(name=f"{prefix}invite <@user>", value="Invite a user to your company", inline=False)
-        embed.add_field(name=f"{prefix}leave", value="Leave your current company", inline=False)
-        embed.add_field(name=f"{prefix}kick <@user>", value="Kick a member from your company (owner only)", inline=False)
-        embed.add_field(name=f"{prefix}disband", value="Disband your company as the owner", inline=False)
-        embed.add_field(name=f"{prefix}companies", value="List all companies on the server", inline=False)
+        embed.add_field(name=f"🎯 {prefix}createcompany <name>", value="```ini\n[Create a new company (requires higher role)]```", inline=False)
+        embed.add_field(name=f"ℹ️ {prefix}company [name]", value="```ini\n[Display info about your company or another company]```", inline=False)
+        embed.add_field(name=f"📨 {prefix}invite <@user>", value="```ini\n[Invite a user to your company]```", inline=False)
+        embed.add_field(name=f"🚪 {prefix}leave", value="```ini\n[Leave your current company]```", inline=False)
+        embed.add_field(name=f"👢 {prefix}kick <@user>", value="```ini\n[Kick a member from your company (owner only)]```", inline=False)
+        embed.add_field(name=f"💥 {prefix}disband", value="```ini\n[Disband your company as the owner]```", inline=False)
+        embed.add_field(name=f"📑 {prefix}companies", value="```ini\n[List all companies on the server]```", inline=False)
 
     # Moderation commands
     elif category.lower() == "moderation":
-        embed.title = "Moderation Commands"
-        embed.description = "Commands for moderating users with timeouts."
+        embed.title = "🛡️ Moderation Commands"
+        embed.description = "```ini\n[Commands for moderating users with timeouts]```"
 
-        embed.add_field(name=f"{prefix}timeout <@user>", value="Timeout a user based on your role permissions", inline=False)
-        embed.add_field(name=f"{prefix}timeout_cost", value="Check the cost of using the timeout command", inline=False)
-        embed.add_field(name=f"{prefix}timeout_limit", value="Check your timeout duration limit based on your roles", inline=False)
-        embed.add_field(name=f"{prefix}timeout_history [@user]", value="View timeout history for yourself or another user", inline=False)
+        embed.add_field(name=f"⏰ {prefix}timeout <@user>", value="```ini\n[Timeout a user based on your role permissions]```", inline=False)
+        embed.add_field(name=f"💰 {prefix}timeout_cost", value="```ini\n[Check the cost of using the timeout command]```", inline=False)
+        embed.add_field(name=f"⚖️ {prefix}timeout_limit", value="```ini\n[Check your timeout duration limit based on your roles]```", inline=False)
+        embed.add_field(name=f"📜 {prefix}timeout_history [@user]", value="```ini\n[View timeout history for yourself or another user]```", inline=False)
 
     # Betting commands
     elif category.lower() == "bets":
@@ -218,26 +218,26 @@ async def help_command(ctx, category=None):
 
     # General commands
     elif category.lower() == "general":
-        embed.title = "General Commands"
-        embed.description = "General utility commands."
+        embed.title = "📊 General Commands"
+        embed.description = "```ini\n[General utility commands]```"
 
-        embed.add_field(name=f"{prefix}help [category]", value="Display this help menu", inline=False)
-        embed.add_field(name=f"{prefix}ping", value="Check the bot's response time", inline=False)
-        embed.add_field(name=f"{prefix}info", value="Display information about the bot", inline=False)
+        embed.add_field(name=f"❓ {prefix}help [category]", value="```ini\n[Display this help menu]```", inline=False)
+        embed.add_field(name=f"🏓 {prefix}ping", value="```ini\n[Check the bot's response time]```", inline=False)
+        embed.add_field(name=f"ℹ️ {prefix}info", value="```ini\n[Display information about the bot]```", inline=False)
         
     # Items commands
     elif category.lower() == "items":
-        embed.title = "Items and Shop Commands"
-        embed.description = "Commands for browsing the shop and managing your inventory."
+        embed.title = "🎁 Items and Shop Commands"
+        embed.description = "```ini\n[Commands for browsing the shop and managing your inventory]```"
         
-        embed.add_field(name=f"{prefix}shop [category]", value="Browse the item shop or specific category", inline=False)
-        embed.add_field(name=f"{prefix}buy <item_id>", value="Buy an item from the shop", inline=False)
-        embed.add_field(name=f"{prefix}inventory", value="View your inventory", inline=False)
-        embed.add_field(name=f"{prefix}use <item_id>", value="Use a consumable item from your inventory", inline=False)
-        embed.add_field(name=f"{prefix}gift <item_id> <quantity> <@user>", value="Gift an item to another user", inline=False)
-        embed.add_field(name=f"{prefix}additem <name> <price> <category> <description>", value="Admin only: Add a new item to the shop", inline=False)
-        embed.add_field(name=f"{prefix}addcategory <name> <description>", value="Admin only: Add a new item category", inline=False)
-        embed.add_field(name=f"{prefix}removeitem <item_id>", value="Admin only: Remove an item from the shop", inline=False)
+        embed.add_field(name=f"🛍️ {prefix}shop [category]", value="```ini\n[Browse the item shop or specific category]```", inline=False)
+        embed.add_field(name=f"💰 {prefix}buy <item_id>", value="```ini\n[Buy an item from the shop]```", inline=False)
+        embed.add_field(name=f"🎒 {prefix}inventory", value="```ini\n[View your inventory]```", inline=False)
+        embed.add_field(name=f"📦 {prefix}use <item_id>", value="```ini\n[Use a consumable item from your inventory]```", inline=False)
+        embed.add_field(name=f"🎀 {prefix}gift <item_id> <quantity> <@user>", value="```ini\n[Gift an item to another user]```", inline=False)
+        embed.add_field(name=f"➕ {prefix}additem <name> <price> <category> <description>", value="```ini\n[Admin only: Add a new item to the shop]```", inline=False)
+        embed.add_field(name=f"📁 {prefix}addcategory <name> <description>", value="```ini\n[Admin only: Add a new item category]```", inline=False)
+        embed.add_field(name=f"➖ {prefix}removeitem <item_id>", value="```ini\n[Admin only: Remove an item from the shop]```", inline=False)
     
     # Events commands
     elif category.lower() == "events":
