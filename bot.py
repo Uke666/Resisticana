@@ -123,23 +123,29 @@ async def help_command(ctx, category=None):
 
     # Categories for organization
     categories = {
-        "economy": ("💰 Economy Commands", "Money, bank, and daily rewards"),
-        "company": ("🏢 Company Commands", "Company creation and management"),
-        "moderation": ("🛡️ Moderation Commands", "Role-based timeout commands"),
-        "general": ("📊 General Commands", "General utility commands"),
-        "bets": ("🎲 Betting Commands", "AI-powered betting system"),
-        "items": ("🎁 Items Commands", "Shop and inventory system"),
-        "events": ("📈 Events Commands", "Economic events affecting the economy")
+        "economy": ("🏠 Economy", "Money, bank, and daily rewards"),
+        "company": ("🏛️ Company", "Company creation and management"),
+        "moderation": ("🛡️ Moderation", "Role-based bomb commands"),
+        "general": ("👤 General", "General utility commands"),
+        "bets": ("🎲 Bets", "AI-powered betting system"),
+        "items": ("🎁 Items", "Shop and inventory system"),
+        "events": ("📈 Events", "Economic events affecting the economy")
     }
 
     # General help menu (categories)
     if not category:
+        embed.title = "Discord Economy Bot - Help Menu"
+        embed.description = f"Use `{prefix}help <category>` to view specific commands.\nAll commands are also available as slash commands!"
+        embed.color = discord.Color.from_rgb(47, 49, 54)
+        
         for cat, (emoji_title, desc) in categories.items():
             embed.add_field(
                 name=f"{emoji_title}",
                 value=f"`{prefix}help {cat}` - {desc}",
                 inline=False
             )
+        
+        embed.set_footer(text=f"Discord Economy Bot | Use {prefix}help or /help")
     else:
         cat = category.lower()
         if cat in categories:
