@@ -2528,7 +2528,7 @@ class Items(BaseCog):
                     # Get all active investments
                     investments = CompanyInvestment.query.filter(
                         CompanyInvestment.expires_at > current_time,
-                        CompanyInvestment.last_payout < current_time - timedelta(hours=24)
+                        CompanyInvestment.last_payment_at < current_time - timedelta(hours=24)
                     ).all()
                     
                     for investment in investments:
@@ -2558,8 +2558,8 @@ class Items(BaseCog):
                                     )
                                     db.session.add(transaction)
                                     
-                                    # Update last payout time
-                                    investment.last_payout = current_time
+                                    # Update last payment time
+                                    investment.last_payment_at = current_time
                                     
                                     logging.info(f"Processed investment income: {investor.id} received {daily_return} from {company.name}")
                                     
