@@ -116,7 +116,7 @@ async def help_command(ctx, category=None):
     # Create base embed with fancy styling
     embed = discord.Embed(
         title="🤖 Discord Economy Bot - Help Menu",
-        description=f"[Use !help <category> to view specific commands]\n[All commands are also available as slash commands!]",
+        description=f"```ini\n[Use !help <category> to view specific commands]\n[All commands are also available as slash commands!]```",
         color=discord.Color.blurple()
     )
 
@@ -127,37 +127,37 @@ async def help_command(ctx, category=None):
     if not category:
         embed.add_field(
             name="🏦 Economy",
-            value=f"`{prefix}help economy` - Money, bank, and daily rewards",
+            value=f"```ini\n!help economy - Money, bank, and daily rewards```",
             inline=False
         )
         embed.add_field(
             name="🏢 Company",
-            value=f"[!help company] - Company creation and management",
+            value=f"```ini\n!help company - Company creation and management```",
             inline=False
         )
         embed.add_field(
             name="🛡️ Moderation", 
-            value=f"[!help moderation] - Role-based timeout commands",
+            value=f"```ini\n!help moderation - Role-based timeout commands```",
             inline=False
         )
         embed.add_field(
             name="📊 General",
-            value=f"[!help general] - General utility commands",
+            value=f"```ini\n!help general - General utility commands```",
             inline=False
         )
         embed.add_field(
             name="🎲 Bets",
-            value=f"[!help bets] - AI-powered betting system",
+            value=f"```ini\n!help bets - AI-powered betting system```",
             inline=False
         )
         embed.add_field(
             name="🎁 Items",
-            value=f"[!help items] - Shop and inventory system",
+            value=f"```ini\n!help items - Shop and inventory system```",
             inline=False
         )
         embed.add_field(
             name="📈 Events",
-            value=f"[!help events] - Economic events affecting the economy",
+            value=f"```ini\n!help events - Economic events affecting the economy```",
             inline=False
         )
 
