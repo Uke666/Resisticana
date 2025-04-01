@@ -1,0 +1,12 @@
+
+asyncio>=3.4.3
+discord-py>=2.5.2
+email-validator>=2.2.0
+flask-login>=0.6.3
+flask>=3.1.0
+flask-sqlalchemy>=3.1.1
+gunicorn>=23.0.0
+openai>=1.68.2
+psycopg2-binary>=2.9.10
+tlgbotfwk>=0.4.61
+sqlalchemy>=2.0.39
