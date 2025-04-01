@@ -130,18 +130,18 @@ async def help_command(ctx, category=None):
         embed.color = discord.Color.blue()
 
         categories = [
-            ("🏦 Economy", f"`{prefix}help economy`", "Money, bank, and daily rewards"),
-            ("🏢 Company", f"`{prefix}help company`", "Company creation and management"),
-            ("🛡️ Moderation", f"`{prefix}help moderation`", "Role-based timeout commands"),
-            ("📊 General", f"`{prefix}help general`", "General utility commands"),
-            ("🎲 Bets", f"`{prefix}help bets`", "AI-powered betting system"),
-            ("🎁 Items", f"`{prefix}help items`", "Shop and inventory system"),
-            ("📈 Events", f"`{prefix}help events`", "Economic events affecting the economy")
+            ("🏦", "Economy", f"`{prefix}help economy`", "Money, bank, and daily rewards"),
+            ("🏢", "Company", f"`{prefix}help company`", "Company creation and management"),
+            ("🛡️", "Moderation", f"`{prefix}help moderation`", "Role-based timeout commands"),
+            ("👥", "General", f"`{prefix}help general`", "General utility commands"),
+            ("🎲", "Bets", f"`{prefix}help bets`", "AI-powered betting system"),
+            ("🎁", "Items", f"`{prefix}help items`", "Shop and inventory system"),
+            ("📈", "Events", f"`{prefix}help events`", "Economic events affecting the economy")
         ]
 
-        for emoji_name, command, desc in categories:
+        for emoji, name, command, desc in categories:
             embed.add_field(
-                name=emoji_name,
+                name=f"{emoji} {name}",
                 value=f"{command} - {desc}",
                 inline=False
             )
@@ -282,18 +282,18 @@ async def help_slash(interaction: discord.Interaction, category: str = None):
         embed.color = discord.Color.blue()
 
         categories = [
-            ("🏦 Economy", "/help economy", "Money, bank, and daily rewards"),
-            ("🏢 Company", "/help company", "Company creation and management"),
-            ("🛡️ Moderation", "/help moderation", "Role-based timeout commands"),
-            ("📊 General", "/help general", "General utility commands"),
-            ("🎲 Bets", "/help bets", "AI-powered betting system"),
-            ("🎁 Items", "/help items", "Shop and inventory system"),
-            ("📈 Events", "/help events", "Economic events affecting the economy")
+            ("🏦", "Economy", "/help economy", "Money, bank, and daily rewards"),
+            ("🏢", "Company", "/help company", "Company creation and management"),
+            ("🛡️", "Moderation", "/help moderation", "Role-based timeout commands"),
+            ("👥", "General", "/help general", "General utility commands"),
+            ("🎲", "Bets", "/help bets", "AI-powered betting system"),
+            ("🎁", "Items", "/help items", "Shop and inventory system"),
+            ("📈", "Events", "/help events", "Economic events affecting the economy")
         ]
 
-        for emoji_name, command, desc in categories:
+        for emoji, name, command, desc in categories:
             embed.add_field(
-                name=emoji_name,
+                name=f"{emoji} {name}",
                 value=f"`{command}` - {desc}",
                 inline=False
             )
