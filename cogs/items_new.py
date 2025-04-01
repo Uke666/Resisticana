@@ -33,9 +33,27 @@ class Items(BaseCog):
         
     @app_commands.command(name="shop", description="Browse the item shop")
     @app_commands.describe(category="Category of items to view")
+    @app_commands.choices(category=[
+        app_commands.Choice(name="Collectibles", value="1"),  # Using IDs instead of names
+        app_commands.Choice(name="Power-Ups", value="2"),
+        app_commands.Choice(name="Gameplay", value="3"),
+        app_commands.Choice(name="Investments", value="4"),
+        app_commands.Choice(name="Loot Boxes", value="5"),
+        app_commands.Choice(name="Special Power-ups", value="6"),
+    ])
     async def shop_slash(self, interaction: discord.Interaction, category: str = None):
         """Browse the item shop with slash command."""
-        await self.show_shop_categories_slash(interaction) if not category else await self.show_category_items_slash(interaction, category)
+        logging.info(f"Shop slash command called with category: '{category}'")
+        if not category:
+            await self.show_shop_categories_slash(interaction)
+        else:
+            # If category is provided through choices, it will be the category ID
+            try:
+                category_id = int(category)
+                await self.show_category_items_by_id_slash(interaction, category_id)
+            except ValueError:
+                # Fallback to name-based lookup if ID is not a valid number
+                await self.show_category_items_slash(interaction, category)
         
     async def show_shop_categories(self, ctx):
         """Show all item categories in the shop."""
@@ -276,33 +294,34 @@ class Items(BaseCog):
                     category = ItemCategory.query.filter_by(name="Loot Boxes").first()
                     logging.info(f"Loot Boxes partial match result: {category}")
             
+    async def show_category_items_by_id_slash(self, interaction: discord.Interaction, category_id: int):
+        """Show items in a specific category by category ID (slash command version)."""
+        from app import app
+        from datetime import datetime
+        
+        with app.app_context():
+            # Log the requested category ID for debugging
+            logging.info(f"Searching for category with ID: {category_id}")
+            
+            # Get category by ID - direct database lookup
+            category = ItemCategory.query.get(category_id)
+            logging.info(f"Category lookup by ID result: {category}")
+            
             if not category:
-                if interaction.response.is_done():
-                    await interaction.followup.send(
-                        embed=self.error_embed(f"Category '{category_name}' not found."),
-                        ephemeral=True
-                    )
-                else:
-                    await interaction.response.send_message(
-                        embed=self.error_embed(f"Category '{category_name}' not found."),
-                        ephemeral=True
-                    )
+                await interaction.response.send_message(
+                    embed=self.error_embed(f"Category with ID {category_id} not found."),
+                    ephemeral=True
+                )
                 return
             
             # Get items in this category
             items = Item.query.filter_by(category_id=category.id).all()
             
             if not items:
-                if interaction.response.is_done():
-                    await interaction.followup.send(
-                        embed=self.error_embed(f"No items found in category '{category.name}'."),
-                        ephemeral=True
-                    )
-                else:
-                    await interaction.response.send_message(
-                        embed=self.error_embed(f"No items found in category '{category.name}'."),
-                        ephemeral=True
-                    )
+                await interaction.response.send_message(
+                    embed=self.error_embed(f"No items found in category '{category.name}'."),
+                    ephemeral=True
+                )
                 return
             
             # Create embed message
@@ -410,6 +429,7 @@ class Items(BaseCog):
         user_id = ctx.author.id
         
         from app import app
+        from datetime import datetime
         
         with app.app_context():
             # Find database records
@@ -505,6 +525,7 @@ class Items(BaseCog):
         user_id = interaction.user.id
         
         from app import app
+        from datetime import datetime
         
         with app.app_context():
             # Find database records
