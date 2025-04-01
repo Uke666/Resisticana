@@ -60,7 +60,7 @@ async def on_ready():
 
 async def load_extensions():
     """Load all cog extensions."""
-    for extension in ['cogs.economy', 'cogs.company', 'cogs.moderation', 'cogs.betting', 'cogs.items']:
+    for extension in ['cogs.economy', 'cogs.company', 'cogs.moderation', 'cogs.betting', 'cogs.items_new']:
         try:
             await bot.load_extension(extension)
             logging.info(f'Loaded extension: {extension}')

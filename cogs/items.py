@@ -886,24 +886,24 @@ class Items(BaseCog):
                     return
                 
                 # Handle Loot Boxes
-                elif hasattr(item, 'category') and item.category and item.category.name == 'Loot Boxes':
+                if hasattr(item, 'category') and item.category and item.category.name == 'Loot Boxes':
                     min_reward = properties.get('min_reward', 100)
                     max_reward = properties.get('max_reward', 500)
                     import random
                     reward_amount = random.randint(min_reward, max_reward)
                 
-                # Add money to user's wallet
+                    # Add money to user's wallet
                     guild_member.wallet += reward_amount
                     effect_message += f" and received {reward_amount} coins!"
                 
-                # Add transaction record
+                    # Add transaction record
                     transaction = Transaction(
                         user_id=db_user.id,
                         guild_id=db_guild.id,
                         transaction_type="loot_box",
                         amount=reward_amount,
                         description=f"Opened {item.name}"
-                )
+                    )
                     db.session.add(transaction)
             
             # Handle Double Daily
